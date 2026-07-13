@@ -8,6 +8,7 @@ Aplikasi Desktop pengunduh YouTube yang simpel dan elegan, ditenagai oleh `yt-dl
 - **Thumbnail Preview** — Menampilkan gambar sampul video sebelum mengunduh.
 - **Live Progress Bar** — Persentase dan kecepatan download ditampilkan secara real-time tanpa membuat aplikasi macet (menggunakan background threading).
 - **In-App Log** — Dilengkapi dengan panel log di bagian bawah aplikasi untuk memantau proses (koneksi, pencarian, dan unduhan) secara transparan.
+- **Unduh Massal (Bulk Download)** — Masukkan banyak tautan YouTube sekaligus (pisahkan dengan *Enter*) untuk mengunduhnya sebagai MP3 secara otomatis.
 - **Unduh Video (MP4)** — Pilih kualitas spesifik atau pilih "Terbaik" untuk kualitas tertinggi.
 - **Unduh Audio (MP3)** — Otomatis mengekstrak audio dari video (membutuhkan FFmpeg).
 - **Dark Mode** — Tema gelap bawaan yang nyaman di mata.
@@ -62,7 +63,9 @@ Digunakan oleh `yt-dlp` untuk:
    ```
 
 ## Cara Penggunaan 📖
-1. **Halaman Home** — Tempel link YouTube, klik **"Cari Video"**.
+1. **Halaman Home** — Tempel link YouTube ke dalam kotak input.
+   - *Single Download:* Masukkan 1 link, lalu klik **"Cari Video"**.
+   - *Bulk Download:* Masukkan banyak link (tekan *Enter* untuk setiap link baru), lalu klik **"Cari Video"**. Aplikasi akan beralih ke mode Unduhan Massal MP3.
 2. **Halaman Download** — Pilih format (MP4/MP3), pilih kualitas, klik **"Mulai Unduh"**.
 3. File tersimpan di folder `downloads/`.
 4. Klik **"⟵ Unduh Lagi"** untuk kembali dan mengunduh video lain.

@@ -50,6 +50,7 @@ class App(ctk.CTk):
         self.current_info = None
         self.is_downloading = False
         self._thumb_image = None
+        self.bulk_urls = []
 
         # ── Top: Page container ──
         self.container = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -127,11 +128,11 @@ class App(ctk.CTk):
         title = ctk.CTkLabel(page, text="YT Downloader", font=ctk.CTkFont(size=28, weight="bold"))
         title.grid(row=1, column=0, pady=(0, 5))
 
-        subtitle = ctk.CTkLabel(page, text="Unduh video & audio dari YouTube", font=ctk.CTkFont(size=13), text_color="gray")
+        subtitle = ctk.CTkLabel(page, text="Unduh video & audio dari YouTube\n(Gunakan Enter untuk memasukkan banyak tautan/bulk)", font=ctk.CTkFont(size=13), text_color="gray")
         subtitle.grid(row=2, column=0, pady=(0, 25))
 
         # URL Input
-        self.url_entry = ctk.CTkEntry(page, placeholder_text="Tempel tautan YouTube di sini...", height=45, font=ctk.CTkFont(size=14))
+        self.url_entry = ctk.CTkTextbox(page, height=80, font=ctk.CTkFont(size=14), activate_scrollbars=True)
         self.url_entry.grid(row=3, column=0, padx=35, sticky="ew")
 
         # Fetch Button
@@ -216,14 +217,17 @@ class App(ctk.CTk):
         self.pages[name].pack(fill="both", expand=True)
 
     def _go_home(self):
-        self.url_entry.delete(0, "end")
+        self.url_entry.delete("1.0", "end")
         self.home_status.configure(text="")
         self.format_var.set("mp4")
+        self.radio_mp4.configure(state="normal")
+        self.radio_mp3.configure(state="normal")
         self._show_quality(True)
         self.progress_frame.grid_remove()
         self.progress_bar.set(0)
         self.dl_status.configure(text="")
         self.download_btn.configure(state="normal")
+        self.bulk_urls = []
         self._show_page("home")
 
     # ──────────────────────────────────────────────
@@ -243,15 +247,37 @@ class App(ctk.CTk):
     # FETCH
     # ──────────────────────────────────────────────
     def fetch_video(self):
-        url = self.url_entry.get().strip()
-        if not url:
+        raw_text = self.url_entry.get("1.0", "end").strip()
+        urls = [u.strip() for u in raw_text.split('\n') if u.strip()]
+        
+        if not urls:
             self.home_status.configure(text="Silakan masukkan URL YouTube", text_color="#e74c3c")
             return
 
-        self.fetch_btn.configure(state="disabled", text="Mencari...")
-        self.home_status.configure(text="Mencari info video...", text_color="gray")
-
-        threading.Thread(target=self._fetch_thread, args=(url,), daemon=True).start()
+        if len(urls) == 1:
+            self.bulk_urls = []
+            self.fetch_btn.configure(state="disabled", text="Mencari...")
+            self.home_status.configure(text="Mencari info video...", text_color="gray")
+            threading.Thread(target=self._fetch_thread, args=(urls[0],), daemon=True).start()
+        else:
+            self.bulk_urls = urls
+            self._log(f"Mode Unduhan Massal MP3 aktif: {len(urls)} tautan ditemukan")
+            
+            self.dl_title.configure(text=f"Unduhan Massal MP3 ({len(urls)} Video)")
+            self.dl_detail.configure(text="Tautan akan diunduh satu per satu secara berurutan.")
+            self.dl_thumb.configure(image=None, text="🎵")
+            
+            self.format_var.set("mp3")
+            self.radio_mp4.configure(state="disabled")
+            self.radio_mp3.configure(state="normal")
+            self._show_quality(False)
+            
+            self.progress_frame.grid_remove()
+            self.progress_bar.set(0)
+            self.dl_status.configure(text="")
+            self.download_btn.configure(state="normal")
+            
+            self._show_page("download")
 
     def _fetch_thread(self, url):
         logger = YtLogger(self._log)
@@ -278,7 +304,7 @@ class App(ctk.CTk):
             sorted_res = sorted(available_res, reverse=True)
             quality_options = [f"{h}p" for h in sorted_res]
             if quality_options:
-                quality_options.insert(0, f"Terbaik ({quality_options[0]})")
+                quality_options[0] = f"Terbaik ({quality_options[0]})"
             else:
                 quality_options = ["Terbaik"]
 
@@ -346,8 +372,8 @@ class App(ctk.CTk):
     # DOWNLOAD
     # ──────────────────────────────────────────────
     def start_download(self):
-        url = self.url_entry.get().strip()
-        if not url or self.is_downloading:
+        raw_text = self.url_entry.get("1.0", "end").strip()
+        if not raw_text or self.is_downloading:
             return
 
         self.is_downloading = True
@@ -362,8 +388,13 @@ class App(ctk.CTk):
 
         os.makedirs("downloads", exist_ok=True)
 
-        self._log(f"Memulai unduhan: format={fmt}, kualitas={quality}")
-        threading.Thread(target=self._download_thread, args=(url, fmt, quality), daemon=True).start()
+        if self.bulk_urls:
+            self._log(f"Memulai unduhan massal: {len(self.bulk_urls)} video (MP3)")
+            threading.Thread(target=self._bulk_download_thread, daemon=True).start()
+        else:
+            url = raw_text
+            self._log(f"Memulai unduhan: format={fmt}, kualitas={quality}")
+            threading.Thread(target=self._download_thread, args=(url, fmt, quality), daemon=True).start()
 
     def _progress_hook(self, d):
         if d['status'] == 'downloading':
@@ -387,6 +418,56 @@ class App(ctk.CTk):
     def _update_progress(self, val, msg):
         self.progress_bar.set(val)
         self.dl_status.configure(text=msg)
+
+    def _bulk_progress_hook(self, d, idx, total):
+        if d['status'] == 'downloading':
+            percent_str = ANSI_RE.sub('', d.get('_percent_str', '0%').strip())
+            speed = ANSI_RE.sub('', d.get('_speed_str', ''))
+            
+            try:
+                percent_val = float(percent_str.replace('%', '')) / 100.0
+            except ValueError:
+                percent_val = 0.0
+                
+            msg = f"⬇ [{idx}/{total}] {percent_str}  •  {speed}"
+            self.after(0, self._update_progress, percent_val, msg)
+            
+        elif d['status'] == 'finished':
+            filename = os.path.basename(d.get('filename', ''))
+            self._log(f"Selesai mengunduh: {filename}")
+
+    def _bulk_download_thread(self):
+        logger = YtLogger(self._log)
+        total = len(self.bulk_urls)
+        
+        for idx, url in enumerate(self.bulk_urls, 1):
+            if not self.is_downloading:
+                break
+                
+            self._log(f"[{idx}/{total}] Memproses: {url}")
+            self.after(0, self._update_progress, 0, f"⏳ [{idx}/{total}] Memulai unduhan...")
+            
+            ydl_opts = {
+                'outtmpl': 'downloads/%(title)s_%(id)s.%(ext)s',
+                'progress_hooks': [lambda d, i=idx, t=total: self._bulk_progress_hook(d, i, t)],
+                'logger': logger,
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+                'ignoreerrors': True,
+            }
+            
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+            except Exception as e:
+                self._log(f"Error pada {url}: {e}", "error")
+        
+        self._log("Unduhan massal selesai ✅")
+        self.after(0, self._on_download_complete)
 
     def _download_thread(self, url, fmt, quality):
         logger = YtLogger(self._log)

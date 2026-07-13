@@ -2,6 +2,18 @@
 
 Semua perubahan yang signifikan pada proyek ini akan didokumentasikan di file ini.
 
+## [1.1.0] - 2026-07-13
+
+### ✨ Fitur Baru
+- **Unduhan Massal (Bulk Download)**: Mendukung pengunduhan banyak tautan sekaligus (MP3). Pengguna kini dapat menekan tombol *Enter* untuk memasukkan banyak tautan YouTube di kotak input utama.
+
+### 🐛 Perbaikan (Bug Fixes)
+- **Opsi Kualitas Ganda**: Memperbaiki masalah di mana opsi resolusi terbaik muncul dua kali di dalam menu *dropdown* (contoh: "Terbaik (1080p)" dan "1080p" kini dilebur menjadi satu).
+
+### ♻️ Perubahan (Changes)
+- Mengganti komponen antarmuka input tautan dari satu baris (`CTkEntry`) menjadi multi-baris (`CTkTextbox`).
+- Menyesuaikan *placeholder* dan judul untuk memperjelas dukungan *Bulk Download*.
+
 ## [1.0.0] - 2026-07-13
 
 ### 🎉 Rilis Pertama (Initial Release)
