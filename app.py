@@ -773,11 +773,12 @@ class App(ctk.CTk):
 
         if getattr(self, "bulk_format_mode", "mp3") == "mp3":
             ydl_opts['format'] = 'bestaudio/best'
-            ydl_opts['postprocessors'] = [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }]
+            ydl_opts['writethumbnail'] = True
+            ydl_opts['postprocessors'] = [
+                {'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'},
+                {'key': 'FFmpegMetadata'},
+                {'key': 'EmbedThumbnail'},
+            ]
         else:
             var = self.bulk_mp4_vars.get(url)
             chosen_q = var.get() if var else "Terbaik"
@@ -807,11 +808,12 @@ class App(ctk.CTk):
 
         if fmt == 'mp3':
             ydl_opts['format'] = 'bestaudio/best'
-            ydl_opts['postprocessors'] = [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }]
+            ydl_opts['writethumbnail'] = True
+            ydl_opts['postprocessors'] = [
+                {'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'},
+                {'key': 'FFmpegMetadata'},
+                {'key': 'EmbedThumbnail'},
+            ]
             self._log("Format: MP3 (ekstraksi audio)")
         else:
             if quality.startswith('Terbaik'):
