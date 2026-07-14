@@ -9,6 +9,7 @@ import re
 import json
 import subprocess
 import sys
+import glob
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
@@ -62,6 +63,7 @@ class App(ctk.CTk):
 
         self.current_info = None
         self.is_downloading = False
+        self.is_cancelled = False
         self._thumb_image = None
         self.bulk_urls = []
         self.bulk_progress = {}
@@ -263,6 +265,10 @@ class App(ctk.CTk):
 
         self.back_btn = ctk.CTkButton(action_frame, text="⟵  Unduh Lagi", height=38, font=ctk.CTkFont(size=13), fg_color="transparent", border_width=1, border_color="gray", hover_color=("gray80", "gray30"), command=self._go_home)
         self.back_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
+        
+        self.cancel_btn = ctk.CTkButton(action_frame, text="❌  Batal", height=38, font=ctk.CTkFont(size=13), fg_color="#e74c3c", hover_color="#c0392b", command=self.cancel_download)
+        self.cancel_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
+        self.cancel_btn.grid_remove()
 
         self.open_folder_btn = ctk.CTkButton(action_frame, text="📂  Buka Folder", height=38, font=ctk.CTkFont(size=13), fg_color="#27ae60", hover_color="#2ecc71", command=self._open_download_folder)
         self.open_folder_btn.grid(row=0, column=1, padx=(5, 0), sticky="ew")
@@ -289,6 +295,11 @@ class App(ctk.CTk):
         self.download_btn.configure(state="normal")
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid_remove()
+        if hasattr(self, "cancel_btn"):
+            self.cancel_btn.grid_remove()
+            self.cancel_btn.configure(state="normal", text="❌  Batal")
+        if hasattr(self, "back_btn"):
+            self.back_btn.grid()
         self.bulk_urls = []
         self.bulk_progress = {}
         self._show_page("home")
@@ -301,6 +312,21 @@ class App(ctk.CTk):
                 subprocess.call(['open' if sys.platform == 'darwin' else 'xdg-open', self.download_folder])
         except Exception as e:
             self._log(f"Gagal membuka folder: {e}", "error")
+
+    def cancel_download(self):
+        if self.is_downloading:
+            self.is_cancelled = True
+            self.cancel_btn.configure(state="disabled", text="Membatalkan...")
+            self._log("Proses pembatalan diminta oleh pengguna...", "warning")
+
+    def _cleanup_part_files(self):
+        try:
+            for ext in ('*.part', '*.ytdl', '*.temp'):
+                for f in glob.glob(os.path.join(self.download_folder, ext)):
+                    os.remove(f)
+            self._log("Membersihkan file sementara (.part) selesai.", "info")
+        except Exception as e:
+            self._log(f"Gagal membersihkan file sisa: {e}", "warning")
 
     # ──────────────────────────────────────────────
     # FORMAT & QUALITY CHANGE
@@ -463,8 +489,12 @@ class App(ctk.CTk):
             return
 
         self.is_downloading = True
+        self.is_cancelled = False
         self.download_btn.configure(state="disabled")
-        self.back_btn.configure(state="disabled")
+        self.back_btn.grid_remove()
+        if hasattr(self, "cancel_btn"):
+            self.cancel_btn.grid()
+            self.cancel_btn.configure(state="normal", text="❌  Batal")
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid_remove()
         self.progress_bar.set(0)
@@ -486,6 +516,9 @@ class App(ctk.CTk):
             threading.Thread(target=self._download_thread, args=(url, fmt, quality), daemon=True).start()
 
     def _progress_hook(self, d):
+        if getattr(self, "is_cancelled", False):
+            raise Exception("USER_CANCEL")
+            
         if d['status'] == 'downloading':
             percent_str = ANSI_RE.sub('', d.get('_percent_str', '0%').strip())
             speed = ANSI_RE.sub('', d.get('_speed_str', ''))
@@ -509,6 +542,9 @@ class App(ctk.CTk):
         self.dl_status.configure(text=msg)
 
     def _bulk_progress_hook(self, d, idx, total):
+        if getattr(self, "is_cancelled", False):
+            raise Exception("USER_CANCEL")
+            
         if d['status'] == 'downloading':
             percent_str = ANSI_RE.sub('', d.get('_percent_str', '0%').strip())
             
@@ -553,7 +589,10 @@ class App(ctk.CTk):
                 except Exception as e:
                     self._log(f"Error tidak terduga pada unduhan: {e}", "error")
 
-        if self.is_downloading:
+        if self.is_cancelled:
+            self._cleanup_part_files()
+            self.after(0, self._on_download_cancelled)
+        elif self.is_downloading:
             self._log("Semua unduhan massal selesai ✅")
             self.after(0, self._on_download_complete)
 
@@ -581,7 +620,10 @@ class App(ctk.CTk):
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
         except Exception as e:
-            self._log(f"Error pada {url}: {e}", "error")
+            if str(e) == "USER_CANCEL":
+                self._log(f"[{idx}/{total}] Dibatalkan.", "warning")
+            else:
+                self._log(f"Error pada {url}: {e}", "error")
 
     def _download_thread(self, url, fmt, quality):
         logger = YtLogger(self._log)
@@ -611,16 +653,23 @@ class App(ctk.CTk):
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 ydl.download([url])
-            self._log("Unduhan selesai ✅")
-            self.after(0, self._on_download_complete)
+            if not self.is_cancelled:
+                self._log("Unduhan selesai ✅")
+                self.after(0, self._on_download_complete)
         except Exception as e:
-            self._log(str(e), "error")
-            self.after(0, self._on_download_error, str(e))
+            if str(e) == "USER_CANCEL":
+                self._cleanup_part_files()
+                self.after(0, self._on_download_cancelled)
+            else:
+                self._log(str(e), "error")
+                self.after(0, self._on_download_error, str(e))
 
     def _on_download_complete(self):
         self.is_downloading = False
         self.download_btn.configure(state="normal")
-        self.back_btn.configure(state="normal")
+        if hasattr(self, "cancel_btn"):
+            self.cancel_btn.grid_remove()
+        self.back_btn.grid()
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid()
         self.dl_status.configure(text="✅ Unduhan selesai! Silakan buka folder tujuan.", text_color="#2ecc71")
@@ -629,10 +678,23 @@ class App(ctk.CTk):
     def _on_download_error(self, err):
         self.is_downloading = False
         self.download_btn.configure(state="normal")
-        self.back_btn.configure(state="normal")
+        if hasattr(self, "cancel_btn"):
+            self.cancel_btn.grid_remove()
+        self.back_btn.grid()
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid_remove()
         self.dl_status.configure(text=f"❌ {err}", text_color="#e74c3c")
+
+    def _on_download_cancelled(self):
+        self.is_downloading = False
+        self.download_btn.configure(state="normal")
+        if hasattr(self, "cancel_btn"):
+            self.cancel_btn.grid_remove()
+        self.back_btn.grid()
+        if hasattr(self, "open_folder_btn"):
+            self.open_folder_btn.grid_remove()
+        self.dl_status.configure(text="⚠️ Unduhan dibatalkan pengguna.", text_color="#f39c12")
+        self.progress_bar.set(0)
 
 
 if __name__ == "__main__":
