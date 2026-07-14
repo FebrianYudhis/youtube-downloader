@@ -846,9 +846,14 @@ class App(ctk.CTk):
             if chosen_q.startswith('Terbaik') or chosen_q == "Terbaik":
                 ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
             else:
-                height = chosen_q.replace('p', '')
-                ydl_opts['format'] = f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best'
+                h = chosen_q.replace('p', '')
+                ydl_opts['format'] = f'bestvideo[height<={h}][ext=mp4]+bestaudio[ext=m4a]/best[height<={h}][ext=mp4]/best'
             ydl_opts['merge_output_format'] = 'mp4'
+            ydl_opts['writethumbnail'] = True
+            ydl_opts['postprocessors'] = [
+                {'key': 'FFmpegMetadata'},
+                {'key': 'EmbedThumbnail'},
+            ]
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -883,6 +888,11 @@ class App(ctk.CTk):
                 height = quality.replace('p', '')
                 ydl_opts['format'] = f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best'
             ydl_opts['merge_output_format'] = 'mp4'
+            ydl_opts['writethumbnail'] = True
+            ydl_opts['postprocessors'] = [
+                {'key': 'FFmpegMetadata'},
+                {'key': 'EmbedThumbnail'},
+            ]
             self._log(f"Format: MP4 ({quality})")
 
         try:
