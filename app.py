@@ -13,20 +13,36 @@ import glob
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
-# Setup theme
-ctk.set_appearance_mode("Dark")
-ctk.set_default_color_theme("blue")
-
 # Constants
-APP_WIDTH = 550
-APP_HEIGHT = 600
+APP_WIDTH = 560
+APP_HEIGHT = 650
 ANSI_RE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 CONFIG_FILE = "config.json"
 DEFAULT_CONFIG = {
     "download_folder": os.path.join(os.path.expanduser("~"), "Downloads"),
     "format": "mp4",
-    "quality": "Terbaik"
+    "quality": "Terbaik",
+    "theme": "Dark"
 }
+
+# Premium Color Palette
+ACCENT = "#6C63FF"
+ACCENT_HOVER = "#5A52D5"
+ACCENT_LIGHT = "#818CF8"
+SUCCESS = "#10B981"
+SUCCESS_HOVER = "#059669"
+DANGER = "#EF4444"
+DANGER_HOVER = "#DC2626"
+WARNING_CLR = "#F59E0B"
+
+# (light, dark) tuples for CTk
+CARD_BG = ("#ffffff", "#1e1e2e")
+CARD_BORDER = ("#d1d5db", "#2a2a3c")
+SUBTLE_TEXT = ("#4b5563", "#a1a8b8")
+LOG_BG = ("#eef2f7", "#111119")
+LOG_TEXT = ("#1e293b", "#c8cdd8")
+SURFACE = ("#f0f4f8", "#252538")
+BTN_TEXT = ("#374151", "#d1d5db")
 
 
 class YtLogger:
@@ -61,6 +77,11 @@ class App(ctk.CTk):
         self.config = self._load_config()
         self.download_folder = self.config.get("download_folder", DEFAULT_CONFIG["download_folder"])
 
+        # Apply saved theme
+        saved_theme = self.config.get("theme", "Dark")
+        ctk.set_appearance_mode(saved_theme)
+        ctk.set_default_color_theme("blue")
+
         self.current_info = None
         self.is_downloading = False
         self.is_cancelled = False
@@ -72,34 +93,53 @@ class App(ctk.CTk):
         self.bulk_mp4_vars = {}
         self.bulk_format_mode = "mp3"
 
-        # ── Top: Page container ──
+        # ── Top Bar: Theme Toggle ──
+        top_bar = ctk.CTkFrame(self, fg_color="transparent", height=36)
+        top_bar.pack(fill="x", padx=24, pady=(12, 0))
+        top_bar.grid_columnconfigure(0, weight=1)
+
+        app_badge = ctk.CTkLabel(top_bar, text="YT Downloader", font=ctk.CTkFont(size=13, weight="bold"), text_color=ACCENT)
+        app_badge.grid(row=0, column=0, sticky="w")
+
+        self.theme_btn = ctk.CTkButton(
+            top_bar, text="☀️" if saved_theme == "Dark" else "🌙",
+            width=36, height=36, corner_radius=18,
+            font=ctk.CTkFont(size=16),
+            fg_color=CARD_BG, hover_color=CARD_BORDER,
+            border_width=1, border_color=CARD_BORDER,
+            command=self._toggle_theme
+        )
+        self.theme_btn.grid(row=0, column=1, sticky="e")
+
+        # ── Page container ──
         self.container = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
-        self.container.pack(fill="both", expand=True, padx=20, pady=(20, 5))
+        self.container.pack(fill="both", expand=True, padx=22, pady=(8, 5))
 
         # ── Bottom: Shared Log Panel (always visible) ──
-        log_wrapper = ctk.CTkFrame(self, corner_radius=10)
-        log_wrapper.pack(fill="x", padx=20, pady=(0, 20))
+        log_wrapper = ctk.CTkFrame(self, corner_radius=12, fg_color=CARD_BG, border_width=1, border_color=CARD_BORDER)
+        log_wrapper.pack(fill="x", padx=22, pady=(5, 16))
         log_wrapper.grid_columnconfigure(0, weight=1)
+        log_wrapper.grid_rowconfigure(1, weight=1)
 
         log_header = ctk.CTkFrame(log_wrapper, fg_color="transparent")
-        log_header.grid(row=0, column=0, padx=10, pady=(8, 0), sticky="ew")
+        log_header.grid(row=0, column=0, padx=14, pady=(10, 0), sticky="ew")
         log_header.grid_columnconfigure(0, weight=1)
 
-        log_title = ctk.CTkLabel(log_header, text="📋 Log", font=ctk.CTkFont(size=12, weight="bold"), anchor="w")
+        log_title = ctk.CTkLabel(log_header, text="📋 Log Aktivitas", font=ctk.CTkFont(size=13, weight="bold"), anchor="w")
         log_title.grid(row=0, column=0, sticky="w")
 
-        clear_btn = ctk.CTkButton(log_header, text="Bersihkan", width=50, height=22, font=ctk.CTkFont(size=11), fg_color="transparent", border_width=1, border_color="gray", hover_color=("gray80", "gray30"), command=self._clear_log)
+        clear_btn = ctk.CTkButton(log_header, text="Bersihkan", width=70, height=26, font=ctk.CTkFont(size=11), fg_color="transparent", border_width=1, border_color=CARD_BORDER, hover_color=CARD_BORDER, text_color=BTN_TEXT, corner_radius=8, command=self._clear_log)
         clear_btn.grid(row=0, column=1)
 
-        self.log_box = ctk.CTkTextbox(log_wrapper, height=130, font=ctk.CTkFont(family="Consolas", size=11), fg_color=("gray90", "#1a1a2e"), text_color=("gray30", "#8892b0"), corner_radius=6, activate_scrollbars=True)
-        self.log_box.grid(row=1, column=0, padx=10, pady=(5, 10), sticky="ew")
+        self.log_box = ctk.CTkTextbox(log_wrapper, height=140, font=ctk.CTkFont(family="Consolas", size=11), fg_color=LOG_BG, text_color=LOG_TEXT, corner_radius=8, border_width=1, border_color=CARD_BORDER, activate_scrollbars=True)
+        self.log_box.grid(row=1, column=0, padx=14, pady=(8, 14), sticky="nsew")
         self.log_box.configure(state="disabled")
 
-        # Tag colors
-        self.log_box.tag_config("warning", foreground="#f39c12")
-        self.log_box.tag_config("error", foreground="#e74c3c")
-        self.log_box.tag_config("info", foreground="#8892b0")
-        self.log_box.tag_config("debug", foreground="#636e88")
+        # Tag colors - (light, dark) aware
+        self.log_box.tag_config("warning", foreground="#b45309")  # amber-700, visible on both
+        self.log_box.tag_config("error", foreground="#dc2626")    # red-600
+        self.log_box.tag_config("info", foreground="")            # inherit from LOG_TEXT
+        self.log_box.tag_config("debug", foreground="#9ca3af")   # gray-400
 
         # Create pages
         self.pages = {}
@@ -154,44 +194,55 @@ class App(ctk.CTk):
             self._log(f"Gagal menyimpan pengaturan: {e}", "error")
 
     # ──────────────────────────────────────────────
+    # THEME TOGGLE
+    # ──────────────────────────────────────────────
+    def _toggle_theme(self):
+        current = ctk.get_appearance_mode()
+        new_theme = "Light" if current == "Dark" else "Dark"
+        ctk.set_appearance_mode(new_theme)
+        self.theme_btn.configure(text="☀️" if new_theme == "Dark" else "🌙")
+        self.config["theme"] = new_theme
+        self._save_config()
+
+    # ──────────────────────────────────────────────
     # PAGE: HOME
     # ──────────────────────────────────────────────
     def _create_page_home(self):
-        page = ctk.CTkFrame(self.container, corner_radius=15)
+        page = ctk.CTkFrame(self.container, corner_radius=18, fg_color=CARD_BG, border_width=1, border_color=CARD_BORDER)
         self.pages["home"] = page
 
         page.grid_columnconfigure(0, weight=1)
 
         # Icon / Branding
-        icon_label = ctk.CTkLabel(page, text="🎬", font=ctk.CTkFont(size=48))
-        icon_label.grid(row=0, column=0, pady=(40, 5))
+        icon_label = ctk.CTkLabel(page, text="🎬", font=ctk.CTkFont(size=52))
+        icon_label.grid(row=0, column=0, pady=(35, 2))
 
-        title = ctk.CTkLabel(page, text="YT Downloader", font=ctk.CTkFont(size=28, weight="bold"))
-        title.grid(row=1, column=0, pady=(0, 5))
+        title = ctk.CTkLabel(page, text="YT Downloader", font=ctk.CTkFont(size=32, weight="bold"))
+        title.grid(row=1, column=0, pady=(0, 3))
 
-        subtitle = ctk.CTkLabel(page, text="Unduh video & audio dari YouTube\n(Gunakan Enter untuk memasukkan banyak tautan/bulk)", font=ctk.CTkFont(size=13), text_color="gray")
-        subtitle.grid(row=2, column=0, pady=(0, 25))
+        subtitle = ctk.CTkLabel(page, text="Unduh video & audio dari YouTube\nGunakan Enter untuk memasukkan banyak tautan / playlist", font=ctk.CTkFont(size=13), text_color=SUBTLE_TEXT)
+        subtitle.grid(row=2, column=0, pady=(0, 22))
 
         # URL Input
-        self.url_entry = ctk.CTkTextbox(page, height=80, font=ctk.CTkFont(size=14), activate_scrollbars=True)
-        self.url_entry.grid(row=3, column=0, padx=35, sticky="ew")
+        self.url_entry = ctk.CTkTextbox(page, height=80, font=ctk.CTkFont(size=14), corner_radius=10, fg_color=LOG_BG, border_width=1, border_color=CARD_BORDER, activate_scrollbars=True)
+        self.url_entry.grid(row=3, column=0, padx=30, sticky="ew")
 
         # Fetch Button
-        self.fetch_btn = ctk.CTkButton(page, text="Cari Video", height=45, font=ctk.CTkFont(size=14, weight="bold"), command=self.fetch_video)
-        self.fetch_btn.grid(row=4, column=0, padx=35, pady=(15, 10), sticky="ew")
+        self.fetch_btn = ctk.CTkButton(page, text="🔍  Cari Video", height=48, font=ctk.CTkFont(size=15, weight="bold"), fg_color=ACCENT, hover_color=ACCENT_HOVER, corner_radius=12, command=self.fetch_video)
+        self.fetch_btn.grid(row=4, column=0, padx=30, pady=(15, 8), sticky="ew")
 
         # Status
-        self.home_status = ctk.CTkLabel(page, text="", font=ctk.CTkFont(size=12), text_color="gray")
-        self.home_status.grid(row=5, column=0, padx=35, pady=(0, 10))
+        self.home_status = ctk.CTkLabel(page, text="", font=ctk.CTkFont(size=12), text_color=SUBTLE_TEXT)
+        self.home_status.grid(row=5, column=0, padx=30, pady=(0, 8))
         
         # Folder Selection
         folder_frame = ctk.CTkFrame(page, fg_color="transparent")
-        folder_frame.grid(row=6, column=0, padx=35, pady=(0, 20), sticky="ew")
+        folder_frame.grid(row=6, column=0, padx=30, pady=(0, 20), sticky="ew")
         
-        self.folder_label = ctk.CTkLabel(folder_frame, text=f"📂 {self.download_folder}", font=ctk.CTkFont(size=11), text_color="gray", anchor="w")
+        self.folder_label = ctk.CTkLabel(folder_frame, text=f"📂 {self.download_folder}", font=ctk.CTkFont(size=11), text_color=SUBTLE_TEXT, anchor="w")
         self.folder_label.pack(side="left", fill="x", expand=True, padx=(0, 10))
         
-        folder_btn = ctk.CTkButton(folder_frame, text="Ubah", width=50, height=24, font=ctk.CTkFont(size=11), command=self._choose_folder)
+        folder_btn = ctk.CTkButton(folder_frame, text="Ubah", width=55, height=26, font=ctk.CTkFont(size=11), fg_color="transparent", border_width=1, border_color=CARD_BORDER, hover_color=CARD_BORDER, text_color=BTN_TEXT, command=self._choose_folder)
         folder_btn.pack(side="right")
 
     def _choose_folder(self):
@@ -206,74 +257,74 @@ class App(ctk.CTk):
     # PAGE: FORMAT CHOICE (BULK)
     # ──────────────────────────────────────────────
     def _create_page_format_choice(self):
-        page = ctk.CTkFrame(self.container, corner_radius=15)
+        page = ctk.CTkFrame(self.container, corner_radius=18, fg_color=CARD_BG, border_width=1, border_color=CARD_BORDER)
         self.pages["format_choice"] = page
         page.grid_columnconfigure(0, weight=1)
 
-        self.fc_title = ctk.CTkLabel(page, text="Pilih Format", font=ctk.CTkFont(size=24, weight="bold"))
-        self.fc_title.grid(row=0, column=0, pady=(40, 5))
+        self.fc_title = ctk.CTkLabel(page, text="📦 Pilih Format", font=ctk.CTkFont(size=26, weight="bold"))
+        self.fc_title.grid(row=0, column=0, pady=(45, 5))
 
-        self.fc_subtitle = ctk.CTkLabel(page, text="Ditemukan N video.", font=ctk.CTkFont(size=14), text_color="gray")
-        self.fc_subtitle.grid(row=1, column=0, pady=(0, 30))
+        self.fc_subtitle = ctk.CTkLabel(page, text="Ditemukan N video.", font=ctk.CTkFont(size=14), text_color=SUBTLE_TEXT)
+        self.fc_subtitle.grid(row=1, column=0, pady=(0, 35))
 
         btn_frame = ctk.CTkFrame(page, fg_color="transparent")
         btn_frame.grid(row=2, column=0)
 
-        mp3_btn = ctk.CTkButton(btn_frame, text="🎵 MP3", width=120, height=50, font=ctk.CTkFont(size=16, weight="bold"), command=lambda: self._on_bulk_format_chosen("mp3"))
-        mp3_btn.grid(row=0, column=0, padx=10)
+        mp3_btn = ctk.CTkButton(btn_frame, text="🎵 MP3", width=140, height=55, font=ctk.CTkFont(size=17, weight="bold"), fg_color=ACCENT, hover_color=ACCENT_HOVER, corner_radius=14, command=lambda: self._on_bulk_format_chosen("mp3"))
+        mp3_btn.grid(row=0, column=0, padx=12)
 
-        mp4_btn = ctk.CTkButton(btn_frame, text="🎬 MP4", width=120, height=50, font=ctk.CTkFont(size=16, weight="bold"), command=lambda: self._on_bulk_format_chosen("mp4"))
-        mp4_btn.grid(row=0, column=1, padx=10)
+        mp4_btn = ctk.CTkButton(btn_frame, text="🎬 MP4", width=140, height=55, font=ctk.CTkFont(size=17, weight="bold"), fg_color=ACCENT, hover_color=ACCENT_HOVER, corner_radius=14, command=lambda: self._on_bulk_format_chosen("mp4"))
+        mp4_btn.grid(row=0, column=1, padx=12)
 
-        back_btn = ctk.CTkButton(page, text="Batal", width=100, fg_color="transparent", border_width=1, hover_color=("gray80", "gray30"), command=self._go_home)
+        back_btn = ctk.CTkButton(page, text="← Kembali", width=110, fg_color="transparent", border_width=1, border_color=CARD_BORDER, hover_color=CARD_BORDER, text_color=BTN_TEXT, command=self._go_home)
         back_btn.grid(row=3, column=0, pady=(50, 0))
 
     # ──────────────────────────────────────────────
     # PAGE: BULK MP4 QUALITY SELECTION
     # ──────────────────────────────────────────────
     def _create_page_bulk_mp4(self):
-        page = ctk.CTkFrame(self.container, corner_radius=15)
+        page = ctk.CTkFrame(self.container, corner_radius=18, fg_color=CARD_BG, border_width=1, border_color=CARD_BORDER)
         self.pages["bulk_mp4"] = page
         page.grid_columnconfigure(0, weight=1)
         page.grid_rowconfigure(1, weight=1)
 
-        title = ctk.CTkLabel(page, text="Pilih Kualitas Video", font=ctk.CTkFont(size=20, weight="bold"))
-        title.grid(row=0, column=0, pady=(20, 10))
+        title = ctk.CTkLabel(page, text="🎬 Pilih Kualitas Video", font=ctk.CTkFont(size=22, weight="bold"))
+        title.grid(row=0, column=0, pady=(25, 12))
 
-        self.scroll_frame = ctk.CTkScrollableFrame(page, corner_radius=10)
+        self.scroll_frame = ctk.CTkScrollableFrame(page, corner_radius=10, fg_color=LOG_BG)
         self.scroll_frame.grid(row=1, column=0, padx=20, sticky="nsew")
 
         action_frame = ctk.CTkFrame(page, fg_color="transparent")
         action_frame.grid(row=2, column=0, pady=20)
 
-        back_btn = ctk.CTkButton(action_frame, text="Batal", width=100, fg_color="transparent", border_width=1, hover_color=("gray80", "gray30"), command=self._go_home)
+        back_btn = ctk.CTkButton(action_frame, text="← Kembali", width=110, fg_color="transparent", border_width=1, border_color=CARD_BORDER, hover_color=CARD_BORDER, text_color=BTN_TEXT, command=self._go_home)
         back_btn.grid(row=0, column=0, padx=10)
 
-        start_btn = ctk.CTkButton(action_frame, text="Mulai Unduh", width=120, font=ctk.CTkFont(weight="bold"), command=self._start_bulk_mp4_download)
+        start_btn = ctk.CTkButton(action_frame, text="⬇  Mulai Unduh", width=140, height=40, font=ctk.CTkFont(size=14, weight="bold"), fg_color=ACCENT, hover_color=ACCENT_HOVER, corner_radius=12, command=self._start_bulk_mp4_download)
         start_btn.grid(row=0, column=1, padx=10)
 
     # ──────────────────────────────────────────────
     # PAGE: DOWNLOAD
     # ──────────────────────────────────────────────
     def _create_page_download(self):
-        page = ctk.CTkFrame(self.container, corner_radius=15)
+        page = ctk.CTkFrame(self.container, corner_radius=18, fg_color=CARD_BG, border_width=1, border_color=CARD_BORDER)
         self.pages["download"] = page
 
         page.grid_columnconfigure(0, weight=1)
 
         # ── Video Info Card ──
-        self.info_card = ctk.CTkFrame(page, corner_radius=10)
-        self.info_card.grid(row=0, column=0, padx=20, pady=(15, 8), sticky="ew")
+        self.info_card = ctk.CTkFrame(page, corner_radius=12, fg_color=SURFACE, border_width=1, border_color=CARD_BORDER)
+        self.info_card.grid(row=0, column=0, padx=22, pady=(18, 10), sticky="ew")
         self.info_card.grid_columnconfigure(1, weight=1)
 
         self.dl_thumb = ctk.CTkLabel(self.info_card, text="")
-        self.dl_thumb.grid(row=0, column=0, rowspan=2, padx=(15, 10), pady=12)
+        self.dl_thumb.grid(row=0, column=0, rowspan=2, padx=(15, 10), pady=14)
 
-        self.dl_title = ctk.CTkLabel(self.info_card, text="", font=ctk.CTkFont(size=13, weight="bold"), wraplength=280, anchor="w", justify="left")
-        self.dl_title.grid(row=0, column=1, padx=(0, 15), pady=(12, 2), sticky="nw")
+        self.dl_title = ctk.CTkLabel(self.info_card, text="", font=ctk.CTkFont(size=14, weight="bold"), wraplength=280, anchor="w", justify="left")
+        self.dl_title.grid(row=0, column=1, padx=(0, 15), pady=(14, 2), sticky="nw")
 
-        self.dl_detail = ctk.CTkLabel(self.info_card, text="", font=ctk.CTkFont(size=11), text_color="gray", anchor="w")
-        self.dl_detail.grid(row=1, column=1, padx=(0, 15), pady=(0, 12), sticky="nw")
+        self.dl_detail = ctk.CTkLabel(self.info_card, text="", font=ctk.CTkFont(size=11), text_color=SUBTLE_TEXT, anchor="w")
+        self.dl_detail.grid(row=1, column=1, padx=(0, 15), pady=(0, 14), sticky="nw")
 
         # ── Format + Quality Row ──
         options_frame = ctk.CTkFrame(page, fg_color="transparent")
@@ -281,23 +332,23 @@ class App(ctk.CTk):
 
         self.format_var = ctk.StringVar(value=self.config.get("format", "mp4"))
 
-        self.radio_mp4 = ctk.CTkRadioButton(options_frame, text="MP4", variable=self.format_var, value="mp4", command=self._on_format_change, font=ctk.CTkFont(size=13))
+        self.radio_mp4 = ctk.CTkRadioButton(options_frame, text="MP4", variable=self.format_var, value="mp4", command=self._on_format_change, font=ctk.CTkFont(size=13), fg_color=ACCENT, hover_color=ACCENT_LIGHT)
         self.radio_mp4.grid(row=0, column=0, padx=(0, 10))
 
-        self.radio_mp3 = ctk.CTkRadioButton(options_frame, text="MP3", variable=self.format_var, value="mp3", command=self._on_format_change, font=ctk.CTkFont(size=13))
+        self.radio_mp3 = ctk.CTkRadioButton(options_frame, text="MP3", variable=self.format_var, value="mp3", command=self._on_format_change, font=ctk.CTkFont(size=13), fg_color=ACCENT, hover_color=ACCENT_LIGHT)
         self.radio_mp3.grid(row=0, column=1, padx=(0, 15))
 
         self.quality_label = ctk.CTkLabel(options_frame, text="Kualitas:", font=ctk.CTkFont(size=13))
         self.quality_label.grid(row=0, column=2, padx=(10, 5))
 
         self.quality_var = ctk.StringVar(value=self.config.get("quality", "Terbaik"))
-        self.quality_menu = ctk.CTkOptionMenu(options_frame, variable=self.quality_var, values=["Terbaik"], width=150, font=ctk.CTkFont(size=12), command=self._on_quality_change)
+        self.quality_menu = ctk.CTkOptionMenu(options_frame, variable=self.quality_var, values=["Terbaik"], width=150, font=ctk.CTkFont(size=12), fg_color=ACCENT, button_color=ACCENT_HOVER, button_hover_color=ACCENT_LIGHT, command=self._on_quality_change)
         self.quality_menu.grid(row=0, column=3)
 
         self._quality_widgets = [self.quality_label, self.quality_menu]
 
         # ── Download Button ──
-        self.download_btn = ctk.CTkButton(page, text="⬇  Mulai Unduh", height=42, font=ctk.CTkFont(size=14, weight="bold"), command=self.start_download)
+        self.download_btn = ctk.CTkButton(page, text="⬇  Mulai Unduh", height=46, font=ctk.CTkFont(size=15, weight="bold"), fg_color=ACCENT, hover_color=ACCENT_HOVER, corner_radius=12, command=self.start_download)
         self.download_btn.grid(row=2, column=0, padx=25, pady=(12, 5), sticky="ew")
 
         # ── Progress Section ──
@@ -305,10 +356,10 @@ class App(ctk.CTk):
         self.progress_frame.grid(row=3, column=0, padx=25, pady=(3, 3), sticky="ew")
         self.progress_frame.grid_columnconfigure(0, weight=1)
 
-        self.dl_status = ctk.CTkLabel(self.progress_frame, text="", font=ctk.CTkFont(size=12), text_color="gray", anchor="w")
+        self.dl_status = ctk.CTkLabel(self.progress_frame, text="", font=ctk.CTkFont(size=12), text_color=SUBTLE_TEXT, anchor="w")
         self.dl_status.grid(row=0, column=0, sticky="w")
 
-        self.progress_bar = ctk.CTkProgressBar(self.progress_frame)
+        self.progress_bar = ctk.CTkProgressBar(self.progress_frame, progress_color=ACCENT, corner_radius=6)
         self.progress_bar.grid(row=1, column=0, pady=(3, 0), sticky="ew")
         self.progress_bar.set(0)
         self.progress_frame.grid_remove()
@@ -319,14 +370,14 @@ class App(ctk.CTk):
         action_frame.grid_columnconfigure(0, weight=1)
         action_frame.grid_columnconfigure(1, weight=1)
 
-        self.back_btn = ctk.CTkButton(action_frame, text="⟵  Unduh Lagi", height=38, font=ctk.CTkFont(size=13), fg_color="transparent", border_width=1, border_color="gray", hover_color=("gray80", "gray30"), command=self._go_home)
+        self.back_btn = ctk.CTkButton(action_frame, text="⟵  Unduh Lagi", height=40, font=ctk.CTkFont(size=13), fg_color="transparent", border_width=1, border_color=CARD_BORDER, hover_color=CARD_BORDER, text_color=BTN_TEXT, corner_radius=10, command=self._go_home)
         self.back_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
         
-        self.cancel_btn = ctk.CTkButton(action_frame, text="❌  Batal", height=38, font=ctk.CTkFont(size=13), fg_color="#e74c3c", hover_color="#c0392b", command=self.cancel_download)
+        self.cancel_btn = ctk.CTkButton(action_frame, text="❌  Batal", height=40, font=ctk.CTkFont(size=13), fg_color=DANGER, hover_color=DANGER_HOVER, corner_radius=10, command=self.cancel_download)
         self.cancel_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
         self.cancel_btn.grid_remove()
 
-        self.open_folder_btn = ctk.CTkButton(action_frame, text="📂  Buka Folder", height=38, font=ctk.CTkFont(size=13), fg_color="#27ae60", hover_color="#2ecc71", command=self._open_download_folder)
+        self.open_folder_btn = ctk.CTkButton(action_frame, text="📂  Buka Folder", height=40, font=ctk.CTkFont(size=13), fg_color=SUCCESS, hover_color=SUCCESS_HOVER, corner_radius=10, command=self._open_download_folder)
         self.open_folder_btn.grid(row=0, column=1, padx=(5, 0), sticky="ew")
         self.open_folder_btn.grid_remove()
 
@@ -856,7 +907,7 @@ class App(ctk.CTk):
         self.back_btn.grid()
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid()
-        self.dl_status.configure(text="✅ Unduhan selesai! Silakan buka folder tujuan.", text_color="#2ecc71")
+        self.dl_status.configure(text="✅ Unduhan selesai! Silakan buka folder tujuan.", text_color=SUCCESS)
         self.progress_bar.set(1)
 
     def _on_download_error(self, err):
@@ -867,7 +918,7 @@ class App(ctk.CTk):
         self.back_btn.grid()
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid_remove()
-        self.dl_status.configure(text=f"❌ {err}", text_color="#e74c3c")
+        self.dl_status.configure(text=f"❌ {err}", text_color=DANGER)
 
     def _on_download_cancelled(self):
         self.is_downloading = False
@@ -877,7 +928,7 @@ class App(ctk.CTk):
         self.back_btn.grid()
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid_remove()
-        self.dl_status.configure(text="⚠️ Unduhan dibatalkan pengguna.", text_color="#f39c12")
+        self.dl_status.configure(text="⚠️ Unduhan dibatalkan pengguna.", text_color=WARNING_CLR)
         self.progress_bar.set(0)
 
 
