@@ -465,12 +465,12 @@ class App(ctk.CTk):
         self.bulk_format_mode = fmt
         self.bulk_urls = self.pending_bulk_urls
         if fmt == "mp3":
-            self.dl_title.configure(text=f"Unduhan Massal MP3 ({len(self.bulk_urls)} Video)")
+            self.dl_title.configure(text=f"Unduhan Massal MP3 ({len(self.bulk_urls)} Item)")
             self.dl_detail.configure(text="Tautan akan diunduh secara paralel.")
-            self.dl_thumb.configure(image=None, text="🎵")
+            self.dl_thumb.grid_remove()
             self.format_var.set("mp3")
-            self.radio_mp4.configure(state="disabled")
-            self.radio_mp3.configure(state="normal")
+            self.radio_mp4.grid_remove()
+            self.radio_mp3.grid_remove()
             self._show_quality(False)
             self._show_page("download")
         else:
@@ -535,12 +535,12 @@ class App(ctk.CTk):
         self._show_page("bulk_mp4")
 
     def _start_bulk_mp4_download(self):
-        self.dl_title.configure(text=f"Unduhan Massal MP4 ({len(self.bulk_mp4_infos)} Video)")
+        self.dl_title.configure(text=f"Unduhan Massal MP4 ({len(self.bulk_mp4_infos)} Item)")
         self.dl_detail.configure(text="Setiap video akan diunduh dengan resolusi terpilih.")
-        self.dl_thumb.configure(image=None, text="🎬")
+        self.dl_thumb.grid_remove()
         self.format_var.set("mp4")
-        self.radio_mp4.configure(state="normal")
-        self.radio_mp3.configure(state="disabled")
+        self.radio_mp4.grid_remove()
+        self.radio_mp3.grid_remove()
         self._show_quality(False)
         self._show_page("download")
         self.start_download()
@@ -612,6 +612,16 @@ class App(ctk.CTk):
 
         self.dl_title.configure(text=title)
         self.dl_detail.configure(text=detail_text)
+        
+        # Re-enable radio buttons for single download
+        self.radio_mp4.grid()
+        self.radio_mp4.configure(state="normal")
+        self.radio_mp3.grid()
+        self.radio_mp3.configure(state="normal")
+
+        # Re-enable thumbnail area for single download
+        self.dl_thumb.grid()
+        
         if image:
             self._thumb_image = image
             self.dl_thumb.configure(image=image, text="")
