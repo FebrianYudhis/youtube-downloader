@@ -67,6 +67,10 @@ class App(ctk.CTk):
         self._thumb_image = None
         self.bulk_urls = []
         self.bulk_progress = {}
+        self.pending_bulk_urls = []
+        self.bulk_mp4_infos = []
+        self.bulk_mp4_vars = {}
+        self.bulk_format_mode = "mp3"
 
         # ── Top: Page container ──
         self.container = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -100,6 +104,8 @@ class App(ctk.CTk):
         # Create pages
         self.pages = {}
         self._create_page_home()
+        self._create_page_format_choice()
+        self._create_page_bulk_mp4()
         self._create_page_download()
 
         self._show_page("home")
@@ -195,6 +201,56 @@ class App(ctk.CTk):
             self.folder_label.configure(text=f"📂 {self.download_folder}")
             self.config["download_folder"] = self.download_folder
             self._save_config()
+
+    # ──────────────────────────────────────────────
+    # PAGE: FORMAT CHOICE (BULK)
+    # ──────────────────────────────────────────────
+    def _create_page_format_choice(self):
+        page = ctk.CTkFrame(self.container, corner_radius=15)
+        self.pages["format_choice"] = page
+        page.grid_columnconfigure(0, weight=1)
+
+        self.fc_title = ctk.CTkLabel(page, text="Pilih Format", font=ctk.CTkFont(size=24, weight="bold"))
+        self.fc_title.grid(row=0, column=0, pady=(40, 5))
+
+        self.fc_subtitle = ctk.CTkLabel(page, text="Ditemukan N video.", font=ctk.CTkFont(size=14), text_color="gray")
+        self.fc_subtitle.grid(row=1, column=0, pady=(0, 30))
+
+        btn_frame = ctk.CTkFrame(page, fg_color="transparent")
+        btn_frame.grid(row=2, column=0)
+
+        mp3_btn = ctk.CTkButton(btn_frame, text="🎵 MP3", width=120, height=50, font=ctk.CTkFont(size=16, weight="bold"), command=lambda: self._on_bulk_format_chosen("mp3"))
+        mp3_btn.grid(row=0, column=0, padx=10)
+
+        mp4_btn = ctk.CTkButton(btn_frame, text="🎬 MP4", width=120, height=50, font=ctk.CTkFont(size=16, weight="bold"), command=lambda: self._on_bulk_format_chosen("mp4"))
+        mp4_btn.grid(row=0, column=1, padx=10)
+
+        back_btn = ctk.CTkButton(page, text="Batal", width=100, fg_color="transparent", border_width=1, hover_color=("gray80", "gray30"), command=self._go_home)
+        back_btn.grid(row=3, column=0, pady=(50, 0))
+
+    # ──────────────────────────────────────────────
+    # PAGE: BULK MP4 QUALITY SELECTION
+    # ──────────────────────────────────────────────
+    def _create_page_bulk_mp4(self):
+        page = ctk.CTkFrame(self.container, corner_radius=15)
+        self.pages["bulk_mp4"] = page
+        page.grid_columnconfigure(0, weight=1)
+        page.grid_rowconfigure(1, weight=1)
+
+        title = ctk.CTkLabel(page, text="Pilih Kualitas Video", font=ctk.CTkFont(size=20, weight="bold"))
+        title.grid(row=0, column=0, pady=(20, 10))
+
+        self.scroll_frame = ctk.CTkScrollableFrame(page, corner_radius=10)
+        self.scroll_frame.grid(row=1, column=0, padx=20, sticky="nsew")
+
+        action_frame = ctk.CTkFrame(page, fg_color="transparent")
+        action_frame.grid(row=2, column=0, pady=20)
+
+        back_btn = ctk.CTkButton(action_frame, text="Batal", width=100, fg_color="transparent", border_width=1, hover_color=("gray80", "gray30"), command=self._go_home)
+        back_btn.grid(row=0, column=0, padx=10)
+
+        start_btn = ctk.CTkButton(action_frame, text="Mulai Unduh", width=120, font=ctk.CTkFont(weight="bold"), command=self._start_bulk_mp4_download)
+        start_btn.grid(row=0, column=1, padx=10)
 
     # ──────────────────────────────────────────────
     # PAGE: DOWNLOAD
@@ -302,6 +358,10 @@ class App(ctk.CTk):
             self.back_btn.grid()
         self.bulk_urls = []
         self.bulk_progress = {}
+        self.pending_bulk_urls = []
+        self.bulk_mp4_infos = []
+        self.bulk_mp4_vars = {}
+        self.bulk_format_mode = "mp3"
         self._show_page("home")
 
     def _open_download_folder(self):
@@ -359,30 +419,131 @@ class App(ctk.CTk):
             self.home_status.configure(text="Silakan masukkan URL YouTube", text_color="#e74c3c")
             return
 
-        if len(urls) == 1:
+        self.fetch_btn.configure(state="disabled", text="Mencari...")
+        self.home_status.configure(text="Memeriksa tautan...", text_color="gray")
+        threading.Thread(target=self._resolve_urls_thread, args=(urls,), daemon=True).start()
+
+    def _resolve_urls_thread(self, urls):
+        logger = YtLogger(self._log)
+        resolved_urls = []
+        ydl_opts = {'extract_flat': True, 'logger': logger, 'ignoreerrors': True}
+        
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                for url in urls:
+                    info = ydl.extract_info(url, download=False)
+                    if info:
+                        if 'entries' in info:
+                            # Playlist detected
+                            for entry in info['entries']:
+                                if entry and entry.get('url'):
+                                    resolved_urls.append(entry['url'])
+                        else:
+                            resolved_urls.append(info.get('webpage_url', url))
+        except Exception as e:
+            self._log(f"Error memeriksa tautan: {e}", "error")
+            
+        if not resolved_urls:
+            self.after(0, self._on_fetch_error, "Tidak ada video yang ditemukan.")
+            return
+
+        if len(resolved_urls) == 1:
             self.bulk_urls = []
-            self.fetch_btn.configure(state="disabled", text="Mencari...")
-            self.home_status.configure(text="Mencari info video...", text_color="gray")
-            threading.Thread(target=self._fetch_thread, args=(urls[0],), daemon=True).start()
+            self.after(0, lambda: self.home_status.configure(text="Mendapatkan info detail..."))
+            self._fetch_thread(resolved_urls[0])
         else:
-            self.bulk_urls = urls
-            self._log(f"Mode Unduhan Massal MP3 aktif: {len(urls)} tautan ditemukan")
-            
-            self.dl_title.configure(text=f"Unduhan Massal MP3 ({len(urls)} Video)")
-            self.dl_detail.configure(text="Tautan akan diunduh satu per satu secara berurutan.")
+            self.pending_bulk_urls = resolved_urls
+            self.after(0, self._show_format_choice)
+
+    def _show_format_choice(self):
+        self.fetch_btn.configure(state="normal", text="Cari Video")
+        self.home_status.configure(text="")
+        self.fc_subtitle.configure(text=f"Ditemukan {len(self.pending_bulk_urls)} video dalam daftar/playlist.\nPilih format unduhan:")
+        self._show_page("format_choice")
+
+    def _on_bulk_format_chosen(self, fmt):
+        self.bulk_format_mode = fmt
+        self.bulk_urls = self.pending_bulk_urls
+        if fmt == "mp3":
+            self.dl_title.configure(text=f"Unduhan Massal MP3 ({len(self.bulk_urls)} Video)")
+            self.dl_detail.configure(text="Tautan akan diunduh secara paralel.")
             self.dl_thumb.configure(image=None, text="🎵")
-            
             self.format_var.set("mp3")
             self.radio_mp4.configure(state="disabled")
             self.radio_mp3.configure(state="normal")
             self._show_quality(False)
-            
-            self.progress_frame.grid_remove()
-            self.progress_bar.set(0)
-            self.dl_status.configure(text="")
-            self.download_btn.configure(state="normal")
-            
             self._show_page("download")
+        else:
+            self._log(f"Memuat info resolusi untuk {len(self.bulk_urls)} video...")
+            self.fc_subtitle.configure(text=f"Memuat info resolusi...\nIni mungkin butuh waktu agak lama.")
+            threading.Thread(target=self._fetch_bulk_mp4_infos_thread, daemon=True).start()
+
+    def _fetch_bulk_mp4_infos_thread(self):
+        logger = YtLogger(self._log)
+        ydl_opts = {'skip_download': True, 'logger': logger, 'ignoreerrors': True}
+        
+        self.bulk_mp4_infos = []
+        total = len(self.bulk_urls)
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            for idx, url in enumerate(self.bulk_urls, 1):
+                self._log(f"[{idx}/{total}] Resolusi: {url}")
+                try:
+                    info = ydl.extract_info(url, download=False)
+                    if info:
+                        title = info.get('title', 'Video Tidak Diketahui')
+                        available_res = set()
+                        for f in info.get('formats', []):
+                            h = f.get('height')
+                            if h and f.get('vcodec', 'none') != 'none':
+                                available_res.add(h)
+                        
+                        sorted_res = sorted(available_res, reverse=True)
+                        quality_options = [f"{h}p" for h in sorted_res]
+                        if not quality_options:
+                            quality_options = ["Terbaik"]
+                        
+                        self.bulk_mp4_infos.append({
+                            'url': url,
+                            'title': title,
+                            'qualities': quality_options
+                        })
+                except Exception:
+                    pass
+        
+        self.after(0, self._render_bulk_mp4_page)
+
+    def _render_bulk_mp4_page(self):
+        for widget in self.scroll_frame.winfo_children():
+            widget.destroy()
+            
+        self.bulk_mp4_vars = {}
+        for idx, info in enumerate(self.bulk_mp4_infos):
+            row_frame = ctk.CTkFrame(self.scroll_frame, fg_color=("gray90", "gray15"))
+            row_frame.pack(fill="x", pady=2, padx=5)
+            row_frame.grid_columnconfigure(0, weight=1)
+            
+            lbl = ctk.CTkLabel(row_frame, text=f"{idx+1}. {info['title']}", anchor="w", wraplength=350, justify="left")
+            lbl.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
+            
+            var = ctk.StringVar(value=info['qualities'][0])
+            self.bulk_mp4_vars[info['url']] = var
+            
+            opt = ctk.CTkOptionMenu(row_frame, values=info['qualities'], variable=var, width=100)
+            opt.grid(row=0, column=1, padx=10, pady=5)
+            
+        self._show_page("bulk_mp4")
+
+    def _start_bulk_mp4_download(self):
+        self.dl_title.configure(text=f"Unduhan Massal MP4 ({len(self.bulk_mp4_infos)} Video)")
+        self.dl_detail.configure(text="Setiap video akan diunduh dengan resolusi terpilih.")
+        self.dl_thumb.configure(image=None, text="🎬")
+        self.format_var.set("mp4")
+        self.radio_mp4.configure(state="normal")
+        self.radio_mp3.configure(state="disabled")
+        self._show_quality(False)
+        self._show_page("download")
+        self.start_download()
 
     def _fetch_thread(self, url):
         logger = YtLogger(self._log)
@@ -508,7 +669,7 @@ class App(ctk.CTk):
 
         if self.bulk_urls:
             self.bulk_progress = {}
-            self._log(f"Memulai unduhan massal paralel: {len(self.bulk_urls)} video (MP3)")
+            self._log(f"Memulai unduhan massal paralel: {len(self.bulk_urls)} video")
             threading.Thread(target=self._bulk_download_manager, daemon=True).start()
         else:
             url = raw_text
@@ -607,14 +768,25 @@ class App(ctk.CTk):
             'outtmpl': os.path.join(self.download_folder, '%(title)s_%(id)s.%(ext)s'),
             'progress_hooks': [lambda d, i=idx, t=total: self._bulk_progress_hook(d, i, t)],
             'logger': logger,
-            'format': 'bestaudio/best',
-            'postprocessors': [{
+            'ignoreerrors': True,
+        }
+
+        if getattr(self, "bulk_format_mode", "mp3") == "mp3":
+            ydl_opts['format'] = 'bestaudio/best'
+            ydl_opts['postprocessors'] = [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
-            }],
-            'ignoreerrors': True,
-        }
+            }]
+        else:
+            var = self.bulk_mp4_vars.get(url)
+            chosen_q = var.get() if var else "Terbaik"
+            if chosen_q.startswith('Terbaik') or chosen_q == "Terbaik":
+                ydl_opts['format'] = 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+            else:
+                height = chosen_q.replace('p', '')
+                ydl_opts['format'] = f'bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/best[height<={height}][ext=mp4]/best'
+            ydl_opts['merge_output_format'] = 'mp4'
         
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
