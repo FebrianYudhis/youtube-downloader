@@ -8,10 +8,13 @@ Aplikasi Desktop pengunduh YouTube yang simpel dan elegan, ditenagai oleh `yt-dl
 - **Thumbnail Preview** — Menampilkan gambar sampul video sebelum mengunduh.
 - **Live Progress Bar** — Persentase dan kecepatan download ditampilkan secara real-time tanpa membuat aplikasi macet (menggunakan background threading).
 - **In-App Log** — Dilengkapi dengan panel log di bagian bawah aplikasi untuk memantau proses (koneksi, pencarian, dan unduhan) secara transparan.
-- **Unduh Massal (Bulk Download)** — Masukkan banyak tautan YouTube sekaligus (pisahkan dengan *Enter*) untuk mengunduhnya sebagai MP3 secara otomatis.
-- **Unduh Video (MP4)** — Pilih kualitas spesifik atau pilih "Terbaik" untuk kualitas tertinggi.
+- **Dukungan Playlist & Unduh Massal** — Masukkan tautan *Playlist* atau banyak tautan video sekaligus (pisahkan dengan *Enter*) untuk mengunduhnya secara bersamaan (Mendukung paralel/konkurensi agar lebih cepat).
+- **Unduh Video (MP4) Massal** — Pilih resolusi spesifik untuk *masing-masing video* dalam playlist sebelum mengunduh.
 - **Unduh Audio (MP3)** — Otomatis mengekstrak audio dari video (membutuhkan FFmpeg).
-- **Dark Mode** — Tema gelap bawaan yang nyaman di mata.
+- **Metadata & Cover Art** — Otomatis menanamkan metadata dan *Thumbnail* YouTube ke dalam file MP3 maupun MP4 hasil unduhan.
+- **Lokasi Unduhan Fleksibel** — Bebas pilih folder tujuan penyimpanan Anda kapan saja.
+- **Batalkan Kapan Saja** — Tombol **Batal (❌)** tersedia saat mengunduh. File sementara (`.part`) akan dihapus secara otomatis.
+- **Premium UI & Dark/Light Mode** — Desain UI modern dan elegan, dilengkapi *toggle* untuk beralih antara Mode Gelap (🌙) dan Mode Terang (☀️).
 
 ## Persyaratan Sistem (Prerequisites) 🛠️
 
@@ -63,17 +66,18 @@ Digunakan oleh `yt-dlp` untuk:
    ```
 
 ## Cara Penggunaan 📖
-1. **Halaman Home** — Tempel link YouTube ke dalam kotak input.
+1. **Pilih Folder** — Klik tombol "Ubah" di layar utama untuk mengatur direktori penyimpanan Anda.
+2. **Halaman Home** — Tempel link YouTube (Video Tunggal atau *Playlist*) ke dalam kotak input.
    - *Single Download:* Masukkan 1 link, lalu klik **"Cari Video"**.
-   - *Bulk Download:* Masukkan banyak link (tekan *Enter* untuk setiap link baru), lalu klik **"Cari Video"**. Aplikasi akan beralih ke mode Unduhan Massal MP3.
-2. **Halaman Download** — Pilih format (MP4/MP3), pilih kualitas, klik **"Mulai Unduh"**.
-3. File tersimpan di folder `downloads/`.
-4. Klik **"⟵ Unduh Lagi"** untuk kembali dan mengunduh video lain.
+   - *Bulk/Playlist:* Masukkan link playlist atau banyak link sekaligus, klik **"Cari Video"**. Anda akan diarahkan ke layar pemilihan format massal (MP4 atau MP3).
+3. **Halaman Download** — Pilih format, pilih kualitas (untuk MP4), lalu klik **"⬇ Mulai Unduh"**.
+4. File otomatis tersimpan lengkap dengan sampul (*thumbnail*). Klik **"📂 Buka Folder"** untuk langsung melihat hasilnya.
+5. Klik **"⟵ Unduh Lagi"** untuk kembali ke awal.
 
 ## Struktur Folder 📁
-- `app.py` — Inti aplikasi (GUI + logika yt-dlp).
+- `app.py` — Inti aplikasi (GUI + logika yt-dlp + threading).
+- `config.json` — Menyimpan preferensi Anda (Folder, Tema, Kualitas terakhir). Dibuat secara otomatis.
 - `requirements.txt` — Daftar dependensi Python.
-- `downloads/` — Folder tempat file hasil unduhan tersimpan.
 
 ## Catatan Tambahan 📝
 - Jika muncul error saat Fetch, pastikan koneksi internet stabil dan URL YouTube valid (bukan video private).

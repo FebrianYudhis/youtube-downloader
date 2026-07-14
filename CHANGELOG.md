@@ -2,6 +2,22 @@
 
 Semua perubahan yang signifikan pada proyek ini akan didokumentasikan di file ini.
 
+## [1.2.0] - 2026-07-14
+
+### ✨ Fitur Baru
+- **Dukungan Playlist & MP4 Massal**: Mendukung unduhan seluruh video dari *Playlist* YouTube. Pengguna dapat memilih format massal antara MP3 atau MP4. Untuk MP4, pengguna dapat memilih kualitas/resolusi dari masing-masing video sebelum memulai unduhan.
+- **Konkurensi Unduhan**: Unduhan massal kini berjalan secara paralel (*concurrent*) menggunakan *ThreadPoolExecutor* (maksimal 3 unduhan bersamaan), sehingga jauh lebih cepat.
+- **Tombol Batal (Cancel)**: Menambahkan tombol pembatalan saat proses unduhan sedang berjalan, lengkap dengan sistem otomatis untuk menghapus file sampah/parsial (`.part`, `.ytdl`).
+- **Metadata & Cover Art**: Unduhan format MP3 dan MP4 kini secara otomatis menanamkan metadata lagu/video serta menjadikan *thumbnail* YouTube sebagai gambar sampul (*cover art*) file.
+- **Pilih Folder Unduhan**: Pengguna kini bebas memilih dan menentukan direktori/lokasi penyimpanan unduhan sesuai keinginan (tersimpan di `config.json`).
+- **Toggle Tema**: Menambahkan sakelar untuk beralih antara *Dark Mode* 🌙 dan *Light Mode* ☀️.
+
+### 💅 Peningkatan UI (UI/UX)
+- Perombakan besar pada desain antarmuka (*UI Overhaul*) menjadi lebih premium, rapi, dan modern dengan menggunakan palet warna khusus, padding yang proporsional, dan *layouting* yang lebih responsif.
+- Memperbaiki kontras teks dan warna latar belakang agar selalu terbaca jelas di kedua mode (gelap/terang).
+- Menyederhanakan tampilan kartu saat mode unduhan massal (*bulk*) aktif.
+
+
 ## [1.1.0] - 2026-07-13
 
 ### ✨ Fitur Baru
