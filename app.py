@@ -6,6 +6,9 @@ from PIL import Image
 import os
 import io
 import re
+import json
+import subprocess
+import sys
 from datetime import datetime
 
 # Setup theme
@@ -16,6 +19,12 @@ ctk.set_default_color_theme("blue")
 APP_WIDTH = 550
 APP_HEIGHT = 600
 ANSI_RE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+CONFIG_FILE = "config.json"
+DEFAULT_CONFIG = {
+    "download_folder": os.path.join(os.path.expanduser("~"), "Downloads"),
+    "format": "mp4",
+    "quality": "Terbaik"
+}
 
 
 class YtLogger:
@@ -46,6 +55,9 @@ class App(ctk.CTk):
         self.title("YT Downloader")
         self.geometry(f"{APP_WIDTH}x{APP_HEIGHT}")
         self.resizable(False, False)
+
+        self.config = self._load_config()
+        self.download_folder = self.config.get("download_folder", DEFAULT_CONFIG["download_folder"])
 
         self.current_info = None
         self.is_downloading = False
@@ -113,6 +125,25 @@ class App(ctk.CTk):
         self.log_box.configure(state="disabled")
 
     # ──────────────────────────────────────────────
+    # CONFIG
+    # ──────────────────────────────────────────────
+    def _load_config(self):
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return DEFAULT_CONFIG.copy()
+
+    def _save_config(self):
+        try:
+            with open(CONFIG_FILE, "w") as f:
+                json.dump(self.config, f, indent=4)
+        except Exception as e:
+            self._log(f"Gagal menyimpan pengaturan: {e}", "error")
+
+    # ──────────────────────────────────────────────
     # PAGE: HOME
     # ──────────────────────────────────────────────
     def _create_page_home(self):
@@ -141,7 +172,25 @@ class App(ctk.CTk):
 
         # Status
         self.home_status = ctk.CTkLabel(page, text="", font=ctk.CTkFont(size=12), text_color="gray")
-        self.home_status.grid(row=5, column=0, padx=35, pady=(0, 30))
+        self.home_status.grid(row=5, column=0, padx=35, pady=(0, 10))
+        
+        # Folder Selection
+        folder_frame = ctk.CTkFrame(page, fg_color="transparent")
+        folder_frame.grid(row=6, column=0, padx=35, pady=(0, 20), sticky="ew")
+        
+        self.folder_label = ctk.CTkLabel(folder_frame, text=f"📂 {self.download_folder}", font=ctk.CTkFont(size=11), text_color="gray", anchor="w")
+        self.folder_label.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        
+        folder_btn = ctk.CTkButton(folder_frame, text="Ubah", width=50, height=24, font=ctk.CTkFont(size=11), command=self._choose_folder)
+        folder_btn.pack(side="right")
+
+    def _choose_folder(self):
+        folder = ctk.filedialog.askdirectory(initialdir=self.download_folder, title="Pilih Folder Unduhan")
+        if folder:
+            self.download_folder = folder
+            self.folder_label.configure(text=f"📂 {self.download_folder}")
+            self.config["download_folder"] = self.download_folder
+            self._save_config()
 
     # ──────────────────────────────────────────────
     # PAGE: DOWNLOAD
@@ -170,7 +219,7 @@ class App(ctk.CTk):
         options_frame = ctk.CTkFrame(page, fg_color="transparent")
         options_frame.grid(row=1, column=0, pady=(5, 0))
 
-        self.format_var = ctk.StringVar(value="mp4")
+        self.format_var = ctk.StringVar(value=self.config.get("format", "mp4"))
 
         self.radio_mp4 = ctk.CTkRadioButton(options_frame, text="MP4", variable=self.format_var, value="mp4", command=self._on_format_change, font=ctk.CTkFont(size=13))
         self.radio_mp4.grid(row=0, column=0, padx=(0, 10))
@@ -181,8 +230,8 @@ class App(ctk.CTk):
         self.quality_label = ctk.CTkLabel(options_frame, text="Kualitas:", font=ctk.CTkFont(size=13))
         self.quality_label.grid(row=0, column=2, padx=(10, 5))
 
-        self.quality_var = ctk.StringVar(value="Terbaik")
-        self.quality_menu = ctk.CTkOptionMenu(options_frame, variable=self.quality_var, values=["Terbaik"], width=150, font=ctk.CTkFont(size=12))
+        self.quality_var = ctk.StringVar(value=self.config.get("quality", "Terbaik"))
+        self.quality_menu = ctk.CTkOptionMenu(options_frame, variable=self.quality_var, values=["Terbaik"], width=150, font=ctk.CTkFont(size=12), command=self._on_quality_change)
         self.quality_menu.grid(row=0, column=3)
 
         self._quality_widgets = [self.quality_label, self.quality_menu]
@@ -204,9 +253,18 @@ class App(ctk.CTk):
         self.progress_bar.set(0)
         self.progress_frame.grid_remove()
 
-        # ── Back Button ──
-        self.back_btn = ctk.CTkButton(page, text="⟵  Unduh Lagi", height=38, font=ctk.CTkFont(size=13), fg_color="transparent", border_width=1, border_color="gray", hover_color=("gray80", "gray30"), command=self._go_home)
-        self.back_btn.grid(row=4, column=0, padx=25, pady=(5, 20), sticky="ew")
+        # ── Action Buttons ──
+        action_frame = ctk.CTkFrame(page, fg_color="transparent")
+        action_frame.grid(row=4, column=0, padx=25, pady=(5, 20), sticky="ew")
+        action_frame.grid_columnconfigure(0, weight=1)
+        action_frame.grid_columnconfigure(1, weight=1)
+
+        self.back_btn = ctk.CTkButton(action_frame, text="⟵  Unduh Lagi", height=38, font=ctk.CTkFont(size=13), fg_color="transparent", border_width=1, border_color="gray", hover_color=("gray80", "gray30"), command=self._go_home)
+        self.back_btn.grid(row=0, column=0, padx=(0, 5), sticky="ew")
+
+        self.open_folder_btn = ctk.CTkButton(action_frame, text="📂  Buka Folder", height=38, font=ctk.CTkFont(size=13), fg_color="#27ae60", hover_color="#2ecc71", command=self._open_download_folder)
+        self.open_folder_btn.grid(row=0, column=1, padx=(5, 0), sticky="ew")
+        self.open_folder_btn.grid_remove()
 
     # ──────────────────────────────────────────────
     # NAVIGATION
@@ -219,22 +277,40 @@ class App(ctk.CTk):
     def _go_home(self):
         self.url_entry.delete("1.0", "end")
         self.home_status.configure(text="")
-        self.format_var.set("mp4")
+        self.format_var.set(self.config.get("format", "mp4"))
         self.radio_mp4.configure(state="normal")
         self.radio_mp3.configure(state="normal")
-        self._show_quality(True)
+        self._show_quality(self.format_var.get() == "mp4")
         self.progress_frame.grid_remove()
         self.progress_bar.set(0)
         self.dl_status.configure(text="")
         self.download_btn.configure(state="normal")
+        if hasattr(self, "open_folder_btn"):
+            self.open_folder_btn.grid_remove()
         self.bulk_urls = []
         self._show_page("home")
 
+    def _open_download_folder(self):
+        try:
+            if os.name == 'nt':
+                os.startfile(self.download_folder)
+            else:
+                subprocess.call(['open' if sys.platform == 'darwin' else 'xdg-open', self.download_folder])
+        except Exception as e:
+            self._log(f"Gagal membuka folder: {e}", "error")
+
     # ──────────────────────────────────────────────
-    # FORMAT CHANGE
+    # FORMAT & QUALITY CHANGE
     # ──────────────────────────────────────────────
     def _on_format_change(self):
-        self._show_quality(self.format_var.get() == "mp4")
+        fmt = self.format_var.get()
+        self._show_quality(fmt == "mp4")
+        self.config["format"] = fmt
+        self._save_config()
+
+    def _on_quality_change(self, choice):
+        self.config["quality"] = choice
+        self._save_config()
 
     def _show_quality(self, show):
         for w in self._quality_widgets:
@@ -353,9 +429,16 @@ class App(ctk.CTk):
             self.dl_thumb.configure(image=None, text="🎬")
 
         self.quality_menu.configure(values=quality_options)
-        self.quality_var.set(quality_options[0])
-        self.format_var.set("mp4")
-        self._show_quality(True)
+        
+        # Try to restore saved quality if it exists in options, else use best
+        saved_q = self.config.get("quality", "Terbaik")
+        if saved_q in quality_options:
+            self.quality_var.set(saved_q)
+        else:
+            self.quality_var.set(quality_options[0])
+            
+        self.format_var.set(self.config.get("format", "mp4"))
+        self._show_quality(self.format_var.get() == "mp4")
 
         self.progress_frame.grid_remove()
         self.progress_bar.set(0)
@@ -379,6 +462,8 @@ class App(ctk.CTk):
         self.is_downloading = True
         self.download_btn.configure(state="disabled")
         self.back_btn.configure(state="disabled")
+        if hasattr(self, "open_folder_btn"):
+            self.open_folder_btn.grid_remove()
         self.progress_bar.set(0)
         self.progress_frame.grid()
         self.dl_status.configure(text="Memulai unduhan...", text_color="gray")
@@ -386,7 +471,7 @@ class App(ctk.CTk):
         fmt = self.format_var.get()
         quality = self.quality_var.get()
 
-        os.makedirs("downloads", exist_ok=True)
+        os.makedirs(self.download_folder, exist_ok=True)
 
         if self.bulk_urls:
             self._log(f"Memulai unduhan massal: {len(self.bulk_urls)} video (MP3)")
@@ -448,7 +533,7 @@ class App(ctk.CTk):
             self.after(0, self._update_progress, 0, f"⏳ [{idx}/{total}] Memulai unduhan...")
             
             ydl_opts = {
-                'outtmpl': 'downloads/%(title)s_%(id)s.%(ext)s',
+                'outtmpl': os.path.join(self.download_folder, '%(title)s_%(id)s.%(ext)s'),
                 'progress_hooks': [lambda d, i=idx, t=total: self._bulk_progress_hook(d, i, t)],
                 'logger': logger,
                 'format': 'bestaudio/best',
@@ -472,7 +557,7 @@ class App(ctk.CTk):
     def _download_thread(self, url, fmt, quality):
         logger = YtLogger(self._log)
         ydl_opts = {
-            'outtmpl': 'downloads/%(title)s_%(id)s.%(ext)s',
+            'outtmpl': os.path.join(self.download_folder, '%(title)s_%(id)s.%(ext)s'),
             'progress_hooks': [self._progress_hook],
             'logger': logger,
         }
@@ -507,13 +592,17 @@ class App(ctk.CTk):
         self.is_downloading = False
         self.download_btn.configure(state="normal")
         self.back_btn.configure(state="normal")
-        self.dl_status.configure(text="✅ Unduhan selesai! Cek folder 'downloads'.", text_color="#2ecc71")
+        if hasattr(self, "open_folder_btn"):
+            self.open_folder_btn.grid()
+        self.dl_status.configure(text="✅ Unduhan selesai! Silakan buka folder tujuan.", text_color="#2ecc71")
         self.progress_bar.set(1)
 
     def _on_download_error(self, err):
         self.is_downloading = False
         self.download_btn.configure(state="normal")
         self.back_btn.configure(state="normal")
+        if hasattr(self, "open_folder_btn"):
+            self.open_folder_btn.grid_remove()
         self.dl_status.configure(text=f"❌ {err}", text_color="#e74c3c")
 
 
