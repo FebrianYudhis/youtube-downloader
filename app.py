@@ -9,6 +9,7 @@ import re
 import json
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 # Setup theme
@@ -63,6 +64,7 @@ class App(ctk.CTk):
         self.is_downloading = False
         self._thumb_image = None
         self.bulk_urls = []
+        self.bulk_progress = {}
 
         # ── Top: Page container ──
         self.container = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -288,6 +290,7 @@ class App(ctk.CTk):
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid_remove()
         self.bulk_urls = []
+        self.bulk_progress = {}
         self._show_page("home")
 
     def _open_download_folder(self):
@@ -474,8 +477,9 @@ class App(ctk.CTk):
         os.makedirs(self.download_folder, exist_ok=True)
 
         if self.bulk_urls:
-            self._log(f"Memulai unduhan massal: {len(self.bulk_urls)} video (MP3)")
-            threading.Thread(target=self._bulk_download_thread, daemon=True).start()
+            self.bulk_progress = {}
+            self._log(f"Memulai unduhan massal paralel: {len(self.bulk_urls)} video (MP3)")
+            threading.Thread(target=self._bulk_download_manager, daemon=True).start()
         else:
             url = raw_text
             self._log(f"Memulai unduhan: format={fmt}, kualitas={quality}")
@@ -507,52 +511,77 @@ class App(ctk.CTk):
     def _bulk_progress_hook(self, d, idx, total):
         if d['status'] == 'downloading':
             percent_str = ANSI_RE.sub('', d.get('_percent_str', '0%').strip())
-            speed = ANSI_RE.sub('', d.get('_speed_str', ''))
             
             try:
                 percent_val = float(percent_str.replace('%', '')) / 100.0
             except ValueError:
                 percent_val = 0.0
                 
-            msg = f"⬇ [{idx}/{total}] {percent_str}  •  {speed}"
-            self.after(0, self._update_progress, percent_val, msg)
+            # Update individual progress
+            self.bulk_progress[idx] = percent_val
+            
+            # Calculate overall progress
+            overall_progress = sum(self.bulk_progress.values()) / total
+            
+            # Count active downloads (progress > 0 and < 1)
+            active = sum(1 for p in self.bulk_progress.values() if 0 < p < 1)
+            
+            msg = f"⬇ Mengunduh {active} file paralel... ({overall_progress:.1%} total)"
+            self.after(0, self._update_progress, overall_progress, msg)
             
         elif d['status'] == 'finished':
+            self.bulk_progress[idx] = 1.0
             filename = os.path.basename(d.get('filename', ''))
-            self._log(f"Selesai mengunduh: {filename}")
+            self._log(f"✅ Selesai: {filename}")
+            
+            overall_progress = sum(self.bulk_progress.values()) / total
+            self.after(0, self._update_progress, overall_progress, f"✅ 1 file selesai... ({overall_progress:.1%} total)")
 
-    def _bulk_download_thread(self):
-        logger = YtLogger(self._log)
+    def _bulk_download_manager(self):
         total = len(self.bulk_urls)
+        self.after(0, self._update_progress, 0, f"⏳ Memulai {total} unduhan...")
         
-        for idx, url in enumerate(self.bulk_urls, 1):
-            if not self.is_downloading:
-                break
-                
-            self._log(f"[{idx}/{total}] Memproses: {url}")
-            self.after(0, self._update_progress, 0, f"⏳ [{idx}/{total}] Memulai unduhan...")
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = []
+            for idx, url in enumerate(self.bulk_urls, 1):
+                self.bulk_progress[idx] = 0.0
+                futures.append(executor.submit(self._bulk_download_single, url, idx, total))
             
-            ydl_opts = {
-                'outtmpl': os.path.join(self.download_folder, '%(title)s_%(id)s.%(ext)s'),
-                'progress_hooks': [lambda d, i=idx, t=total: self._bulk_progress_hook(d, i, t)],
-                'logger': logger,
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-                'ignoreerrors': True,
-            }
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    self._log(f"Error tidak terduga pada unduhan: {e}", "error")
+
+        if self.is_downloading:
+            self._log("Semua unduhan massal selesai ✅")
+            self.after(0, self._on_download_complete)
+
+    def _bulk_download_single(self, url, idx, total):
+        if not self.is_downloading:
+            return
             
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([url])
-            except Exception as e:
-                self._log(f"Error pada {url}: {e}", "error")
+        logger = YtLogger(self._log)
+        self._log(f"[{idx}/{total}] Mulai: {url}")
         
-        self._log("Unduhan massal selesai ✅")
-        self.after(0, self._on_download_complete)
+        ydl_opts = {
+            'outtmpl': os.path.join(self.download_folder, '%(title)s_%(id)s.%(ext)s'),
+            'progress_hooks': [lambda d, i=idx, t=total: self._bulk_progress_hook(d, i, t)],
+            'logger': logger,
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'ignoreerrors': True,
+        }
+        
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+        except Exception as e:
+            self._log(f"Error pada {url}: {e}", "error")
 
     def _download_thread(self, url, fmt, quality):
         logger = YtLogger(self._log)
