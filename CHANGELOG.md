@@ -2,6 +2,21 @@
 
 Semua perubahan yang signifikan pada proyek ini akan didokumentasikan di file ini.
 
+## [1.3.0] - 2026-07-15
+
+### ✨ Fitur Baru & Peningkatan
+- **Pengecekan FFmpeg Otomatis**: Aplikasi kini mengecek ketersediaan `ffmpeg` di sistem saat pertama kali dibuka. Jika tidak ditemukan, peringatan krusial akan muncul di layar beranda untuk mencegah hasil video bisu atau error MP3.
+- **Informasi Ukuran File**: *Progress bar* untuk unduhan tunggal (Single Download) kini menampilkan total estimasi ukuran file (contoh: "45.0% dari 15.0MiB").
+- **Pemisahan Informasi Progress Massal**: Pada mode *Bulk Download*, status "Sedang mengunduh..." dan penghitung jumlah "x/y berhasil" kini dipisah agar lebih mudah dibaca.
+
+### 💅 Perombakan Tema UI (YouTube Style)
+- **Tema Terang Kustom (Light Theme)**: Merombak total palet warna aplikasi ke tema terang yang bersih dengan aksen "Merah YouTube" (#FF0000).
+- Menghapus fitur *toggle Dark/Light Mode* untuk menjaga konsistensi tampilan premium yang lebih difokuskan pada satu tema utama.
+- Menghapus elemen *top bar* (badge versi) agar tampilan lebih luas dan minimalis.
+
+### 🐛 Perbaikan Bug (Bug Fixes)
+- **Bug Pembatalan Antrean Massal**: Memperbaiki masalah kritis di mana mengklik "Batal" saat unduhan massal (*bulk*) hanya menghentikan unduhan aktif, sementara sisa tautan di dalam antrean *ThreadPoolExecutor* masih diam-diam memanggil `yt-dlp`. Kini, pembatalan akan instan memblokir seluruh sisa antrean.
+
 ## [1.2.0] - 2026-07-14
 
 ### ✨ Fitur Baru

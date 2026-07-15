@@ -6,15 +6,16 @@ Aplikasi Desktop pengunduh YouTube yang simpel dan elegan, ditenagai oleh `yt-dl
 - **Navigasi Multi-Halaman** — Alur yang intuitif: masukkan link → Fetch → pilih format & kualitas → Download → kembali untuk download lagi.
 - **Deteksi Resolusi Otomatis** — Setelah Fetch, dropdown kualitas otomatis terisi resolusi yang tersedia dari video (360p, 480p, 720p, 1080p, dst.).
 - **Thumbnail Preview** — Menampilkan gambar sampul video sebelum mengunduh.
-- **Live Progress Bar** — Persentase dan kecepatan download ditampilkan secara real-time tanpa membuat aplikasi macet (menggunakan background threading).
+- **Live Progress Bar** — Persentase, ukuran file (contoh: 15.0MiB), kecepatan download, dan ETA ditampilkan secara real-time.
 - **In-App Log** — Dilengkapi dengan panel log di bagian bawah aplikasi untuk memantau proses (koneksi, pencarian, dan unduhan) secara transparan.
+- **Pengecekan FFmpeg Otomatis** — Memperingatkan Anda di halaman depan jika ekstensi penting FFmpeg belum terinstal.
 - **Dukungan Playlist & Unduh Massal** — Masukkan tautan *Playlist* atau banyak tautan video sekaligus (pisahkan dengan *Enter*) untuk mengunduhnya secara bersamaan (Mendukung paralel/konkurensi agar lebih cepat).
 - **Unduh Video (MP4) Massal** — Pilih resolusi spesifik untuk *masing-masing video* dalam playlist sebelum mengunduh.
 - **Unduh Audio (MP3)** — Otomatis mengekstrak audio dari video (membutuhkan FFmpeg).
 - **Metadata & Cover Art** — Otomatis menanamkan metadata dan *Thumbnail* YouTube ke dalam file MP3 maupun MP4 hasil unduhan.
 - **Lokasi Unduhan Fleksibel** — Bebas pilih folder tujuan penyimpanan Anda kapan saja.
-- **Batalkan Kapan Saja** — Tombol **Batal (❌)** tersedia saat mengunduh. File sementara (`.part`) akan dihapus secara otomatis.
-- **Premium UI & Dark/Light Mode** — Desain UI modern dan elegan, dilengkapi *toggle* untuk beralih antara Mode Gelap (🌙) dan Mode Terang (☀️).
+- **Batalkan Kapan Saja** — Tombol **Batal (❌)** menghentikan unduhan secara instan. File sementara (`.part`) akan dibersihkan secara otomatis.
+- **Premium Light UI (YouTube Style)** — Desain UI modern dan bersih yang menggunakan palet warna khas YouTube (aksen Merah).
 
 ## Persyaratan Sistem (Prerequisites) 🛠️
 
@@ -82,4 +83,4 @@ Digunakan oleh `yt-dlp` untuk:
 ## Catatan Tambahan 📝
 - Jika muncul error saat Fetch, pastikan koneksi internet stabil dan URL YouTube valid (bukan video private).
 - Jika muncul warning terkait JavaScript runtime, pastikan **Deno** sudah terinstal dan ada di PATH.
-- Untuk mengubah tema, edit `ctk.set_appearance_mode()` di bagian atas `app.py` (`"Dark"`, `"Light"`, atau `"System"`).
+- Jika ada *Warning* FFmpeg di layar utama, segera instal FFmpeg sesuai instruksi di atas agar hasil unduhan bisa diproses dengan sempurna.
