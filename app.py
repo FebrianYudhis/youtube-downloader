@@ -10,6 +10,7 @@ import json
 import subprocess
 import sys
 import glob
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
@@ -218,6 +219,11 @@ class App(ctk.CTk):
         
         folder_btn = ctk.CTkButton(folder_frame, text="Ubah", width=55, height=26, font=ctk.CTkFont(size=11), fg_color="transparent", border_width=1, border_color=CARD_BORDER, hover_color=CARD_BORDER, text_color=BTN_TEXT, command=self._choose_folder)
         folder_btn.pack(side="right")
+
+        # FFmpeg Check Warning
+        if not shutil.which("ffmpeg"):
+            ffmpeg_warning = ctk.CTkLabel(page, text="⚠️ FFmpeg tidak terdeteksi!\nVideo HD mungkin bisu dan konversi MP3 bisa gagal. Harap instal FFmpeg.", font=ctk.CTkFont(size=11, weight="bold"), text_color=DANGER, wraplength=450)
+            ffmpeg_warning.grid(row=7, column=0, padx=30, pady=(0, 15), sticky="ew")
 
     def _choose_folder(self):
         folder = ctk.filedialog.askdirectory(initialdir=self.download_folder, title="Pilih Folder Unduhan")
