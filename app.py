@@ -721,15 +721,16 @@ class App(ctk.CTk):
             
         if d['status'] == 'downloading':
             percent_str = ANSI_RE.sub('', d.get('_percent_str', '0%').strip())
-            speed = ANSI_RE.sub('', d.get('_speed_str', ''))
-            eta = ANSI_RE.sub('', d.get('_eta_str', ''))
+            speed = ANSI_RE.sub('', d.get('_speed_str', '~').strip())
+            eta = ANSI_RE.sub('', d.get('_eta_str', '~').strip())
+            total_size = ANSI_RE.sub('', d.get('_total_bytes_str', d.get('_total_bytes_estimate_str', '~')).strip())
 
             try:
                 percent_val = float(percent_str.replace('%', '')) / 100.0
             except ValueError:
                 percent_val = 0.0
 
-            msg = f"⬇ {percent_str}  •  {speed}  •  Sisa waktu {eta}"
+            msg = f"⬇ {percent_str} dari {total_size}  •  {speed}  •  Sisa waktu {eta}"
             self.after(0, self._update_progress, percent_val, msg)
 
         elif d['status'] == 'finished':
