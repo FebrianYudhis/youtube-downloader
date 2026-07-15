@@ -22,27 +22,27 @@ DEFAULT_CONFIG = {
     "download_folder": os.path.join(os.path.expanduser("~"), "Downloads"),
     "format": "mp4",
     "quality": "Terbaik",
-    "theme": "Dark"
 }
 
-# Premium Color Palette
-ACCENT = "#6C63FF"
-ACCENT_HOVER = "#5A52D5"
-ACCENT_LIGHT = "#818CF8"
-SUCCESS = "#10B981"
-SUCCESS_HOVER = "#059669"
-DANGER = "#EF4444"
-DANGER_HOVER = "#DC2626"
-WARNING_CLR = "#F59E0B"
+# ── Light Theme with YouTube Accent ──
+ACCENT = "#FF0000"        # YouTube Red
+ACCENT_HOVER = "#CC0000"  # Darker red on hover
+ACCENT_LIGHT = "#FF4E45"  # Lighter red for highlights
+SUCCESS = "#2E7D32"       # Green
+SUCCESS_HOVER = "#1B5E20"
+DANGER = "#D32F2F"        # Error red
+DANGER_HOVER = "#B71C1C"
+WARNING_CLR = "#E65100"   # Deep orange
 
-# (light, dark) tuples for CTk
-CARD_BG = ("#ffffff", "#1e1e2e")
-CARD_BORDER = ("#d1d5db", "#2a2a3c")
-SUBTLE_TEXT = ("#4b5563", "#a1a8b8")
-LOG_BG = ("#eef2f7", "#111119")
-LOG_TEXT = ("#1e293b", "#c8cdd8")
-SURFACE = ("#f0f4f8", "#252538")
-BTN_TEXT = ("#374151", "#d1d5db")
+# Light theme surfaces
+BG_MAIN = "#F5F5F5"       # Soft gray background
+CARD_BG = "#FFFFFF"       # White cards
+CARD_BORDER = "#E0E0E0"   # Light gray border
+SUBTLE_TEXT = "#757575"   # Medium gray text
+LOG_BG = "#FAFAFA"        # Slightly off-white log area
+LOG_TEXT = "#212121"       # Near-black log text
+SURFACE = "#F0F0F0"       # Light surface
+BTN_TEXT = "#424242"      # Dark gray button text
 
 
 class YtLogger:
@@ -77,10 +77,10 @@ class App(ctk.CTk):
         self.config = self._load_config()
         self.download_folder = self.config.get("download_folder", DEFAULT_CONFIG["download_folder"])
 
-        # Apply saved theme
-        saved_theme = self.config.get("theme", "Dark")
-        ctk.set_appearance_mode(saved_theme)
+        # Force light theme
+        ctk.set_appearance_mode("Light")
         ctk.set_default_color_theme("blue")
+        self.configure(fg_color=BG_MAIN)
 
         self.current_info = None
         self.is_downloading = False
@@ -93,23 +93,6 @@ class App(ctk.CTk):
         self.bulk_mp4_vars = {}
         self.bulk_format_mode = "mp3"
 
-        # ── Top Bar: Theme Toggle ──
-        top_bar = ctk.CTkFrame(self, fg_color="transparent", height=36)
-        top_bar.pack(fill="x", padx=24, pady=(12, 0))
-        top_bar.grid_columnconfigure(0, weight=1)
-
-        app_badge = ctk.CTkLabel(top_bar, text="YT Downloader", font=ctk.CTkFont(size=13, weight="bold"), text_color=ACCENT)
-        app_badge.grid(row=0, column=0, sticky="w")
-
-        self.theme_btn = ctk.CTkButton(
-            top_bar, text="☀️" if saved_theme == "Dark" else "🌙",
-            width=36, height=36, corner_radius=18,
-            font=ctk.CTkFont(size=16),
-            fg_color=CARD_BG, hover_color=CARD_BORDER,
-            border_width=1, border_color=CARD_BORDER,
-            command=self._toggle_theme
-        )
-        self.theme_btn.grid(row=0, column=1, sticky="e")
 
         # ── Page container ──
         self.container = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
@@ -135,11 +118,11 @@ class App(ctk.CTk):
         self.log_box.grid(row=1, column=0, padx=14, pady=(8, 14), sticky="nsew")
         self.log_box.configure(state="disabled")
 
-        # Tag colors - (light, dark) aware
-        self.log_box.tag_config("warning", foreground="#b45309")  # amber-700, visible on both
-        self.log_box.tag_config("error", foreground="#dc2626")    # red-600
-        self.log_box.tag_config("info", foreground="")            # inherit from LOG_TEXT
-        self.log_box.tag_config("debug", foreground="#9ca3af")   # gray-400
+        # Tag colors
+        self.log_box.tag_config("warning", foreground=WARNING_CLR)
+        self.log_box.tag_config("error", foreground=DANGER)
+        self.log_box.tag_config("info", foreground=LOG_TEXT)
+        self.log_box.tag_config("debug", foreground="#6B7280")
 
         # Create pages
         self.pages = {}
@@ -193,16 +176,7 @@ class App(ctk.CTk):
         except Exception as e:
             self._log(f"Gagal menyimpan pengaturan: {e}", "error")
 
-    # ──────────────────────────────────────────────
-    # THEME TOGGLE
-    # ──────────────────────────────────────────────
-    def _toggle_theme(self):
-        current = ctk.get_appearance_mode()
-        new_theme = "Light" if current == "Dark" else "Dark"
-        ctk.set_appearance_mode(new_theme)
-        self.theme_btn.configure(text="☀️" if new_theme == "Dark" else "🌙")
-        self.config["theme"] = new_theme
-        self._save_config()
+
 
     # ──────────────────────────────────────────────
     # PAGE: HOME
