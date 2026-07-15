@@ -819,7 +819,7 @@ class App(ctk.CTk):
             self.after(0, self._on_download_complete)
 
     def _bulk_download_single(self, url, idx, total):
-        if not self.is_downloading:
+        if not self.is_downloading or getattr(self, "is_cancelled", False):
             return
             
         logger = YtLogger(self._log)
