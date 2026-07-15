@@ -355,12 +355,16 @@ class App(ctk.CTk):
         self.progress_frame = ctk.CTkFrame(page, fg_color="transparent")
         self.progress_frame.grid(row=3, column=0, padx=25, pady=(3, 3), sticky="ew")
         self.progress_frame.grid_columnconfigure(0, weight=1)
+        self.progress_frame.grid_columnconfigure(1, weight=1)
 
         self.dl_status = ctk.CTkLabel(self.progress_frame, text="", font=ctk.CTkFont(size=12), text_color=SUBTLE_TEXT, anchor="w")
         self.dl_status.grid(row=0, column=0, sticky="w")
+        
+        self.dl_count = ctk.CTkLabel(self.progress_frame, text="", font=ctk.CTkFont(size=12, weight="bold"), text_color=ACCENT, anchor="e")
+        self.dl_count.grid(row=0, column=1, sticky="e")
 
         self.progress_bar = ctk.CTkProgressBar(self.progress_frame, progress_color=ACCENT, corner_radius=6)
-        self.progress_bar.grid(row=1, column=0, pady=(3, 0), sticky="ew")
+        self.progress_bar.grid(row=1, column=0, columnspan=2, pady=(3, 0), sticky="ew")
         self.progress_bar.set(0)
         self.progress_frame.grid_remove()
 
@@ -759,9 +763,11 @@ class App(ctk.CTk):
             self._log(f"Selesai mengunduh: {filename}")
             self.after(0, self._update_progress, 1.0, "⏳ Memproses file...")
 
-    def _update_progress(self, val, msg):
+    def _update_progress(self, val, msg, count_msg=""):
         self.progress_bar.set(val)
         self.dl_status.configure(text=msg)
+        if hasattr(self, "dl_count"):
+            self.dl_count.configure(text=count_msg)
 
     def _bulk_progress_hook(self, d, idx, total):
         if getattr(self, "is_cancelled", False):
@@ -780,12 +786,11 @@ class App(ctk.CTk):
             
             # Calculate overall progress
             overall_progress = sum(self.bulk_progress.values()) / total
+            finished_count = sum(1 for p in self.bulk_progress.values() if p >= 1.0)
             
-            # Count active downloads (progress > 0 and < 1)
-            active = sum(1 for p in self.bulk_progress.values() if 0 < p < 1)
-            
-            msg = f"⬇ Mengunduh {active} file paralel... ({overall_progress:.1%} total)"
-            self.after(0, self._update_progress, overall_progress, msg)
+            msg = "Sedang mengunduh..."
+            count_msg = f"{finished_count}/{total} berhasil"
+            self.after(0, self._update_progress, overall_progress, msg, count_msg)
             
         elif d['status'] == 'finished':
             self.bulk_progress[idx] = 1.0
@@ -793,7 +798,11 @@ class App(ctk.CTk):
             self._log(f"✅ Selesai: {filename}")
             
             overall_progress = sum(self.bulk_progress.values()) / total
-            self.after(0, self._update_progress, overall_progress, f"✅ 1 file selesai... ({overall_progress:.1%} total)")
+            finished_count = sum(1 for p in self.bulk_progress.values() if p >= 1.0)
+            
+            msg = "Selesai memproses..." if finished_count == total else "Sedang mengunduh..."
+            count_msg = f"{finished_count}/{total} berhasil"
+            self.after(0, self._update_progress, overall_progress, msg, count_msg)
 
     def _bulk_download_manager(self):
         total = len(self.bulk_urls)
@@ -918,6 +927,8 @@ class App(ctk.CTk):
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid()
         self.dl_status.configure(text="✅ Unduhan selesai! Silakan buka folder tujuan.", text_color=SUCCESS)
+        if hasattr(self, "dl_count"):
+            self.dl_count.configure(text="")
         self.progress_bar.set(1)
 
     def _on_download_error(self, err):
@@ -929,6 +940,8 @@ class App(ctk.CTk):
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid_remove()
         self.dl_status.configure(text=f"❌ {err}", text_color=DANGER)
+        if hasattr(self, "dl_count"):
+            self.dl_count.configure(text="")
 
     def _on_download_cancelled(self):
         self.is_downloading = False
@@ -939,6 +952,8 @@ class App(ctk.CTk):
         if hasattr(self, "open_folder_btn"):
             self.open_folder_btn.grid_remove()
         self.dl_status.configure(text="⚠️ Unduhan dibatalkan pengguna.", text_color=WARNING_CLR)
+        if hasattr(self, "dl_count"):
+            self.dl_count.configure(text="")
         self.progress_bar.set(0)
 
 
